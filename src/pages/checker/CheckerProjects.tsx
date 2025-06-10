@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +10,7 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
-import { getAllProjects, getAllProgressUpdates } from '@/lib/storage';
+import { getProjects, getProgressUpdates } from '@/lib/api-client';
 import { Project, ProgressUpdate } from '@/lib/types';
 import { MapView } from '@/components/shared/map-view';
 
@@ -25,9 +24,16 @@ const CheckerProjects = () => {
   const [showDialog, setShowDialog] = useState<boolean>(false);
   
   useEffect(() => {
-    const allProjects = getAllProjects();
-    setProjects(allProjects);
-    setFilteredProjects(allProjects);
+    const loadProjects = async () => {
+      try {
+        const allProjects = await getProjects();
+        setProjects(allProjects);
+        setFilteredProjects(allProjects);
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      }
+    };
+    loadProjects();
   }, []);
   
   // Filter projects based on search term
@@ -38,16 +44,21 @@ const CheckerProjects = () => {
     setFilteredProjects(filtered);
   }, [searchTerm, projects]);
   
-  const handleViewProject = (project: Project) => {
+  const handleViewProject = async (project: Project) => {
     setSelectedProject(project);
     
-    // Get all progress updates for this project
-    const updates = getAllProgressUpdates().filter(update => 
-      update.projectId === project.id
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    setProjectProgress(updates);
-    setShowDialog(true);
+    try {
+      // Get all progress updates for this project
+      const updates = await getProgressUpdates();
+      const projectUpdates = updates
+        .filter(update => update.projectId === project.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      setProjectProgress(projectUpdates);
+      setShowDialog(true);
+    } catch (error) {
+      console.error('Error loading project details:', error);
+    }
   };
   
   const calculateCompletionPercentage = (project: Project) => {

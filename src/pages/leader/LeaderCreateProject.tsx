@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
-import { createProject } from '@/lib/storage';
 import { useLanguage } from '@/context/language-context';
+import { apiRequest } from '@/lib/api-client';
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -43,7 +43,7 @@ const LeaderCreateProject = () => {
     },
   });
   
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
       toast.error("You must be logged in to create a project");
       return;
@@ -52,12 +52,15 @@ const LeaderCreateProject = () => {
     setIsSubmitting(true);
     
     try {
-      const newProject = createProject({
-        name: values.name,
-        leaderId: user.id,
-        workers: parseInt(values.workers),
-        totalWork: parseFloat(values.totalWork),
-        completedWork: 0
+      const newProject = await apiRequest('/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: values.name,
+          leaderId: user.id,
+          workers: parseInt(values.workers),
+          totalWork: parseFloat(values.totalWork),
+          completedWork: 0
+        }),
       });
       
       toast.success("Project created successfully");

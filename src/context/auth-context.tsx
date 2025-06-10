@@ -1,131 +1,136 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from '@/lib/types';
-import { getCurrentUser, setCurrentUser, logoutUser, registerUser } from '@/lib/storage';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
+import { loginUser, registerUser, logoutUser } from '@/lib/api/auth';
+
+interface User {
+  id: string;
+  email: string;
+  role: 'admin' | 'leader' | 'owner' | 'checker';
+  name: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password?: string) => void;
-  logout: () => void;
-  register: (name: string, email: string, password: string, phone: string) => boolean;
   isAuthenticated: boolean;
-  role: UserRole | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  login: () => {},
-  logout: () => {},
-  register: () => false,
-  isAuthenticated: false,
-  role: null,
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => useContext(AuthContext);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Load user from localStorage on mount
   useEffect(() => {
-    const loadedUser = getCurrentUser();
-    if (loadedUser) {
-      setUser(loadedUser);
+    // Check for stored auth token and user data
+    const token = localStorage.getItem('authToken');
+    const storedUser = localStorage.getItem('user');
+    
+    if (token && storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
     }
+    
+    setIsLoading(false);
   }, []);
 
-  // Updated login function to properly handle user roles
-  const login = (email: string, password?: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      // In a real app, we would validate credentials properly
-      // For this demo, determine role from the email
-      let role: UserRole = 'leader';
+      setIsLoading(true);
+      const response = await loginUser(email, password);
       
-      if (email.includes('admin')) {
-        role = 'admin';
-      } else if (email.includes('checker')) {
-        role = 'checker';
-      } else if (email.includes('owner')) {
-        role = 'owner';
-      } else {
-        role = 'leader';
+      if (response.token && response.user) {
+        localStorage.setItem('authToken', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        setUser(response.user);
+        
+        // Redirect based on role
+        const rolePath = `/${response.user.role}`;
+        navigate(rolePath, { replace: true });
+        
+        toast.success('Login successful');
       }
-      
-      // Create user object based on role
-      const foundUser: User = { 
-        id: '1', 
-        name: email.split('@')[0], 
-        email, 
-        password: password || '', 
-        role
-      };
-      
-      setUser(foundUser);
-      setCurrentUser(foundUser);
-      
-      // Redirect based on user role
-      let redirectPath = '/';
-      switch(foundUser.role) {
-        case 'leader':
-          redirectPath = '/leader';
-          break;
-        case 'checker':
-          redirectPath = '/checker';
-          break;
-        case 'owner':
-          redirectPath = '/owner';
-          break;
-        case 'admin':
-          redirectPath = '/admin';
-          break;
-      }
-      
-      toast.success(`Welcome, ${foundUser.name}`, {
-        description: `You are logged in as ${foundUser.role}`,
-      });
-      
-      navigate(redirectPath);
     } catch (error) {
       console.error('Login error:', error);
-      toast.error('Login failed. Please try again.');
+      toast.error('Login failed. Please check your credentials.');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    logoutUser();
-    toast.success("Logged out successfully");
-    navigate('/login');
+  const register = async (email: string, password: string, name: string, role: string) => {
+    try {
+      setIsLoading(true);
+      const response = await registerUser(email, password, name, role);
+      
+      if (response.token && response.user) {
+        localStorage.setItem('authToken', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        setUser(response.user);
+        
+        // Redirect based on role
+        const rolePath = `/${response.user.role}`;
+        navigate(rolePath, { replace: true });
+        
+        toast.success('Registration successful');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
-  
-  const register = (name: string, email: string, password: string, phone: string): boolean => {
-    // Try registering the user - we're assigning a default role of 'leader'
-    const result = registerUser(name, email, password, 'leader');
-    
-    if (result.success) {
-      toast.success("Registration successful!", {
-        description: "You can now log in with your credentials.",
-      });
-      return true;
-    } else {
-      toast.error("Registration failed", {
-        description: result.message,
-      });
-      return false;
+
+  const logout = async () => {
+    try {
+      setIsLoading(true);
+      await logoutUser();
+      
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      setUser(null);
+      
+      navigate('/login', { replace: true });
+      toast.success('Logged out successfully');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed. Please try again.');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const value = {
     user,
-    login,
-    logout,
-    register,
     isAuthenticated: !!user,
-    role: user?.role || null,
+    isLoading,
+    login,
+    register,
+    logout,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 import { AuthLogo } from '@/components/auth/AuthLogo';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
@@ -15,15 +15,25 @@ export default function Login() {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     
-    if (!email || !password) {
+    if (!formData.email || !formData.password) {
       toast.error(t('app.auth.allFieldsRequired'));
       return;
     }
@@ -31,9 +41,8 @@ export default function Login() {
     setLoading(true);
     
     try {
-      await login(email, password);
-      toast.success(t('app.auth.loginSuccess'));
-      navigate('/dashboard');
+      await login(formData.email, formData.password);
+      // Navigation is handled in the auth context
     } catch (error) {
       console.error('Login error:', error);
       toast.error(t('app.auth.loginError'));
@@ -45,9 +54,8 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      await login("admin@saibalaji.com");
-      toast.success(t('app.auth.loginSuccess'));
-      navigate('/dashboard');
+      await login("admin@saibalaji.com", "password123");
+      // Navigation is handled in the auth context
     } catch (error) {
       console.error('Google login error:', error);
       toast.error(t('app.auth.loginError'));
@@ -78,28 +86,25 @@ export default function Login() {
               <Label htmlFor="email" className="text-sm font-medium">{t('app.auth.email')}</Label>
               <Input 
                 id="email" 
+                name="email"
                 type="email" 
                 placeholder={t('app.auth.emailPlaceholder')} 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={handleChange}
                 required
                 className="h-11 border-2 border-border/50 focus:border-primary transition-all duration-200"
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium">{t('app.auth.password')}</Label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:text-primary/80 transition-colors">
-                  {t('app.auth.forgotPassword')}
-                </Link>
-              </div>
+              <Label htmlFor="password" className="text-sm font-medium">{t('app.auth.password')}</Label>
               <div className="relative">
                 <Input 
                   id="password" 
+                  name="password"
                   type={showPassword ? "text" : "password"} 
                   placeholder={t('app.auth.passwordPlaceholder')} 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password}
+                  onChange={handleChange}
                   required
                   className="h-11 border-2 border-border/50 focus:border-primary pr-10 transition-all duration-200"
                 />
@@ -113,11 +118,31 @@ export default function Login() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="remember-me" className="text-sm text-muted-foreground">
+                  {t('app.auth.rememberMe')}
+                </label>
+              </div>
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-primary hover:text-primary/80 transition-colors"
+              >
+                {t('app.auth.forgotPassword')}
+              </Link>
+            </div>
+
             <Button type="submit" className="w-full h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 transition-all duration-200" disabled={loading}>
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {t('app.auth.signingIn')}
+                  {t('app.auth.loggingIn')}
                 </div>
               ) : (
                 <span className="flex items-center gap-2">
@@ -163,14 +188,14 @@ export default function Login() {
                   fill="#EA4335"
                 />
               </svg>
-              {t('app.auth.googleSignIn')}
+              {t('app.auth.continueWithGoogle')}
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <div className="text-sm text-center text-muted-foreground">
               {t('app.auth.noAccount')}{' '}
               <Link to="/signup" className="text-primary hover:text-primary/80 font-medium transition-colors">
-                {t('app.auth.signup')}
+                {t('app.auth.signUp')}
               </Link>
             </div>
           </CardFooter>

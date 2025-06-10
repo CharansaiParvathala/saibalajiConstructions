@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileText, Download, FileOutput, Printer, FilePlus, Image } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { generateExportData, getAllProjects, getProgressUpdatesByProjectId } from '@/lib/storage';
+import { getProjects, getProgressUpdates } from '@/lib/api-client';
 import { useNavigate } from 'react-router-dom';
 import { 
   exportToPDF, 
@@ -49,19 +49,23 @@ const AdminExportData = () => {
 
   // Load projects on mount
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadData = async () => {
       try {
-        const allProjects = getAllProjects();
+        const [allProjects, allUpdates] = await Promise.all([
+          getProjects(),
+          getProgressUpdates()
+        ]);
         setProjects(allProjects);
+        setProgressUpdates(allUpdates);
       } catch (error) {
-        console.error('Error loading projects:', error);
+        console.error('Error loading data:', error);
         toast.error(t("common.error"));
       } finally {
         setLoading(prev => ({ ...prev, initial: false }));
       }
     };
 
-    loadProjects();
+    loadData();
   }, [t]);
 
   const handleExportDocx = async () => {
@@ -69,11 +73,8 @@ const AdminExportData = () => {
       setLoading(prev => ({ ...prev, word: true }));
       toast.info(t("common.generating"));
       
-      // Generate the export data
-      const data = generateExportData();
-      
       // Prepare project data for Word document
-      const projectData = data.projects.map(project => ({
+      const projectData = projects.map(project => ({
         id: project.id || '',
         name: project.name || '',
         leader: project.leaderId || 'N/A',
@@ -105,16 +106,12 @@ const AdminExportData = () => {
     }
   };
 
-  const handleExportPDF = async () => {
+  const handleExportPdf = async () => {
     try {
       setLoading(prev => ({ ...prev, pdf: true }));
       toast.info(t("common.generating"));
       
-      // Generate the export data
-      const data = generateExportData();
-      
-      // Export projects to PDF
-      await exportProjectsToPDF(data.projects);
+      await exportProjectsToPDF(projects);
       
       toast.success(t("common.exportSuccess"));
     } catch (error) {
@@ -125,20 +122,19 @@ const AdminExportData = () => {
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handleExportProjectReport = async () => {
+    if (!selectedProject) return;
+    
     try {
       setLoading(prev => ({ ...prev, report: true }));
       toast.info(t("common.generating"));
       
-      // Generate the export data
-      const data = generateExportData();
-      
-      // Generate detailed report
-      await generateProjectReport(data.projects[0]);
+      const projectUpdates = progressUpdates.filter(update => update.projectId === selectedProject.id);
+      await generateProjectReport(selectedProject, projectUpdates);
       
       toast.success(t("common.exportSuccess"));
     } catch (error) {
-      console.error("Report generation error:", error);
+      console.error("Project report export error:", error);
       toast.error(t("common.exportError"));
     } finally {
       setLoading(prev => ({ ...prev, report: false }));
@@ -147,57 +143,18 @@ const AdminExportData = () => {
 
   const handleExportImages = async () => {
     if (!selectedProject) return;
-
+    
     try {
       setLoading(prev => ({ ...prev, image: true }));
       toast.info(t("common.generating"));
-
-      // Get progress updates for the selected project
-      const updates = await getProgressUpdatesByProjectId(selectedProject.id);
-      if (!updates || !Array.isArray(updates)) {
-        throw new Error('No progress updates found for this project');
-      }
-
-      setProgressUpdates(updates);
-
-      let ratio;
-      switch (aspectRatio) {
-        case '1:1':
-          ratio = { width: 1, height: 1 };
-          break;
-        case '4:3':
-          ratio = { width: 4, height: 3 };
-          break;
-        case '3:4':
-          ratio = { width: 3, height: 4 };
-          break;
-        case '16:9':
-          ratio = { width: 16, height: 9 };
-          break;
-        case '9:16':
-          ratio = { width: 9, height: 16 };
-          break;
-        case '2:3':
-          ratio = { width: 2, height: 3 };
-          break;
-        case '3:2':
-          ratio = { width: 3, height: 2 };
-          break;
-        default:
-          ratio = undefined;
-      }
-
-      await exportProjectImages({
-        project: selectedProject,
-        aspectRatio: ratio,
-        outputDirectory: ''
-      });
-
+      
+      const projectUpdates = progressUpdates.filter(update => update.projectId === selectedProject.id);
+      await exportProjectImages(selectedProject, projectUpdates, aspectRatio);
+      
       toast.success(t("common.exportSuccess"));
-      setShowImageDialog(false);
     } catch (error) {
       console.error("Image export error:", error);
-      toast.error(error instanceof Error ? error.message : t("common.exportError"));
+      toast.error(t("common.exportError"));
     } finally {
       setLoading(prev => ({ ...prev, image: false }));
     }
@@ -213,166 +170,211 @@ const AdminExportData = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t("app.admin.export.title")}</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.export.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        {t("app.admin.export.description")}
+        {t('app.export.description')}
       </p>
       
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6">
+        {/* Export Type Selection */}
         <Card>
           <CardHeader>
-            <CardTitle>{t("app.admin.export.exportOptions")}</CardTitle>
+            <CardTitle>{t('app.export.type.title')}</CardTitle>
             <CardDescription>
-              {t("app.admin.export.selectFormat")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="exportType">{t("app.admin.export.exportType")}</Label>
-              <Select value={exportType} onValueChange={setExportType}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("app.admin.export.selectType")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="projects">{t("app.admin.export.projects")}</SelectItem>
-                  <SelectItem value="payments">{t("app.admin.export.payments")}</SelectItem>
-                  <SelectItem value="statistics">{t("app.admin.export.statistics")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid gap-4">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleExportDocx}
-                disabled={loading.word}
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                {loading.word ? t("common.generating") : t("app.admin.export.exportWord")}
-              </Button>
-              
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleExportPDF}
-                disabled={loading.pdf}
-              >
-                <FileOutput className="mr-2 h-4 w-4" />
-                {loading.pdf ? t("common.generating") : t("app.admin.export.exportPDF")}
-              </Button>
-              
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleGenerateReport}
-                disabled={loading.report}
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                {loading.report ? t("common.generating") : t("app.admin.export.generateReport")}
-              </Button>
-
-              <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={loading.image}
-                  >
-                    <Image className="mr-2 h-4 w-4" />
-                    {loading.image ? t("common.generating") : t("app.admin.export.exportImages")}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{t("app.admin.export.imageExport")}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>{t("app.admin.export.selectProject")}</Label>
-                      <Select
-                        value={selectedProject?.id}
-                        onValueChange={(value) => {
-                          const project = projects.find(p => p.id === value);
-                          setSelectedProject(project || null);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={t("app.admin.export.selectProject")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projects.map(project => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>{t("app.admin.export.aspectRatio")}</Label>
-                      <RadioGroup value={aspectRatio} onValueChange={setAspectRatio}>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="original" id="original" />
-                          <Label htmlFor="original">{t("app.admin.export.original")}</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="1:1" id="1:1" />
-                          <Label htmlFor="1:1">1:1 (Square)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="4:3" id="4:3" />
-                          <Label htmlFor="4:3">4:3 (Standard)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="3:4" id="3:4" />
-                          <Label htmlFor="3:4">3:4 (Portrait)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="16:9" id="16:9" />
-                          <Label htmlFor="16:9">16:9 (Widescreen)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="9:16" id="9:16" />
-                          <Label htmlFor="9:16">9:16 (Mobile)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="2:3" id="2:3" />
-                          <Label htmlFor="2:3">2:3 (Portrait)</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="3:2" id="3:2" />
-                          <Label htmlFor="3:2">3:2 (Landscape)</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-
-                    <Button
-                      className="w-full"
-                      onClick={handleExportImages}
-                      disabled={!selectedProject || loading.image}
-                    >
-                      {loading.image ? t("common.generating") : t("app.admin.export.export")}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("app.admin.export.exportHistory")}</CardTitle>
-            <CardDescription>
-              {t("app.admin.export.recentExports")}
+              {t('app.export.type.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              {t("app.admin.export.noExports")}
-            </div>
+            <RadioGroup
+              value={exportType}
+              onValueChange={setExportType}
+              className="grid grid-cols-2 gap-4"
+            >
+              <div>
+                <RadioGroupItem
+                  value="projects"
+                  id="projects"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="projects"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                >
+                  <FileText className="mb-3 h-6 w-6" />
+                  <span>{t('app.export.type.projects')}</span>
+                </Label>
+              </div>
+              
+              <div>
+                <RadioGroupItem
+                  value="project"
+                  id="project"
+                  className="peer sr-only"
+                />
+                <Label
+                  htmlFor="project"
+                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                >
+                  <FileOutput className="mb-3 h-6 w-6" />
+                  <span>{t('app.export.type.project')}</span>
+                </Label>
+              </div>
+            </RadioGroup>
+          </CardContent>
+        </Card>
+        
+        {/* Project Selection (for single project exports) */}
+        {exportType === 'project' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('app.export.project.title')}</CardTitle>
+              <CardDescription>
+                {t('app.export.project.description')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="project">{t('app.export.project.select')}</Label>
+                  <Select
+                    value={selectedProject?.id}
+                    onValueChange={(value) => {
+                      const project = projects.find(p => p.id === value);
+                      setSelectedProject(project || null);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('app.export.project.placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Image Export Options */}
+                <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setShowImageDialog(true)}
+                    >
+                      <Image className="mr-2 h-4 w-4" />
+                      {t('app.export.image.options')}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{t('app.export.image.title')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>{t('app.export.image.aspectRatio')}</Label>
+                        <RadioGroup
+                          value={aspectRatio}
+                          onValueChange={setAspectRatio}
+                          className="grid grid-cols-3 gap-4"
+                        >
+                          <div>
+                            <RadioGroupItem
+                              value="original"
+                              id="original"
+                              className="peer sr-only"
+                            />
+                            <Label
+                              htmlFor="original"
+                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                            >
+                              {t('app.export.image.original')}
+                            </Label>
+                          </div>
+                          <div>
+                            <RadioGroupItem
+                              value="16:9"
+                              id="16:9"
+                              className="peer sr-only"
+                            />
+                            <Label
+                              htmlFor="16:9"
+                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                            >
+                              16:9
+                            </Label>
+                          </div>
+                          <div>
+                            <RadioGroupItem
+                              value="4:3"
+                              id="4:3"
+                              className="peer sr-only"
+                            />
+                            <Label
+                              htmlFor="4:3"
+                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                            >
+                              4:3
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Export Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('app.export.actions.title')}</CardTitle>
+            <CardDescription>
+              {t('app.export.actions.description')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {exportType === 'projects' ? (
+              <>
+                <Button
+                  onClick={handleExportDocx}
+                  disabled={loading.word || loading.initial}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {loading.word ? t('common.generating') : t('app.export.actions.word')}
+                </Button>
+                
+                <Button
+                  onClick={handleExportPdf}
+                  disabled={loading.pdf || loading.initial}
+                >
+                  <FileOutput className="mr-2 h-4 w-4" />
+                  {loading.pdf ? t('common.generating') : t('app.export.actions.pdf')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={handleExportProjectReport}
+                  disabled={loading.report || loading.initial || !selectedProject}
+                >
+                  <FilePlus className="mr-2 h-4 w-4" />
+                  {loading.report ? t('common.generating') : t('app.export.actions.report')}
+                </Button>
+                
+                <Button
+                  onClick={handleExportImages}
+                  disabled={loading.image || loading.initial || !selectedProject}
+                >
+                  <Image className="mr-2 h-4 w-4" />
+                  {loading.image ? t('common.generating') : t('app.export.actions.images')}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

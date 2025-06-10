@@ -13,7 +13,7 @@ import {
   DialogTitle 
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getAllProjects, getAllProgressUpdates, getAllPaymentRequests, getUserById } from '@/lib/storage';
+import { getProjects, getProgressUpdates, getPaymentRequests, getUsers } from '@/lib/api-client';
 import { Project, ProgressUpdate, PaymentRequest, User } from '@/lib/types';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { MapView } from '@/components/shared/map-view';
@@ -31,9 +31,16 @@ const OwnerProjects = () => {
   const [showDialog, setShowDialog] = useState<boolean>(false);
   
   useEffect(() => {
-    const allProjects = getAllProjects();
-    setProjects(allProjects);
-    setFilteredProjects(allProjects);
+    const loadProjects = async () => {
+      try {
+        const allProjects = await getProjects();
+        setProjects(allProjects);
+        setFilteredProjects(allProjects);
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      }
+    };
+    loadProjects();
   }, []);
   
   // Filter projects based on search term
@@ -44,26 +51,33 @@ const OwnerProjects = () => {
     setFilteredProjects(filtered);
   }, [searchTerm, projects]);
   
-  const handleViewProject = (project: Project) => {
+  const handleViewProject = async (project: Project) => {
     setSelectedProject(project);
     
-    // Get project leader
-    const leader = getUserById(project.leaderId);
-    setProjectLeader(leader);
-    
-    // Get all progress updates for this project
-    const updates = getAllProgressUpdates().filter(update => 
-      update.projectId === project.id
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setProjectProgress(updates);
-    
-    // Get all payment requests for this project
-    const payments = getAllPaymentRequests().filter(payment => 
-      payment.projectId === project.id
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setProjectPayments(payments);
-    
-    setShowDialog(true);
+    try {
+      // Get project leader
+      const users = await getUsers();
+      const leader = users.find(u => u.id === project.leaderId);
+      setProjectLeader(leader || null);
+      
+      // Get all progress updates for this project
+      const updates = await getProgressUpdates();
+      const projectUpdates = updates
+        .filter(update => update.projectId === project.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setProjectProgress(projectUpdates);
+      
+      // Get all payment requests for this project
+      const payments = await getPaymentRequests();
+      const projectPayments = payments
+        .filter(payment => payment.projectId === project.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setProjectPayments(projectPayments);
+      
+      setShowDialog(true);
+    } catch (error) {
+      console.error('Error loading project details:', error);
+    }
   };
   
   const calculateCompletionPercentage = (project: Project) => {
@@ -94,7 +108,7 @@ const OwnerProjects = () => {
   };
   
   const getTotalPayments = (project: Project) => {
-    return getAllPaymentRequests()
+    return projectPayments
       .filter(payment => payment.projectId === project.id && payment.status === 'paid')
       .reduce((sum, payment) => sum + payment.totalAmount, 0);
   };
