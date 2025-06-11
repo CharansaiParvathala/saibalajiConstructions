@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('authToken', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
         setUser(response.user);
-        
+      
         // Redirect based on role
         const rolePath = `/${response.user.role}`;
         navigate(rolePath, { replace: true });
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   };
-
+  
   const register = async (email: string, password: string, name: string, role: string) => {
     try {
       setIsLoading(true);

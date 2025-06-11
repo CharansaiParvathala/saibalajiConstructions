@@ -1,4 +1,4 @@
-import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../../src/lib/types';
+import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../types';
 
 export interface Database {
   // Projects
@@ -18,28 +18,25 @@ export interface Database {
   getProgressUpdates(): Promise<ProgressUpdate[]>;
   getProgressUpdatesByProjectId(projectId: string): Promise<ProgressUpdate[]>;
   addProgressUpdate(update: ProgressUpdate): Promise<void>;
-  getProgressUpdateById(id: string): Promise<ProgressUpdate | undefined>;
-
-  // Vehicles
-  getAllVehicles(): Promise<Vehicle[]>;
-  createVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle>;
-  updateVehicle(vehicle: Vehicle): Promise<void>;
-  deleteVehicle(id: string): Promise<void>;
-  getVehicleById(id: string): Promise<Vehicle | undefined>;
-
-  // Drivers
-  getAllDrivers(): Promise<Driver[]>;
-  createDriver(driver: Omit<Driver, 'id'>): Promise<Driver>;
-  updateDriver(driver: Driver): Promise<void>;
-  deleteDriver(id: string): Promise<void>;
 
   // Users
   getUsers(): Promise<User[]>;
   getUserById(id: string): Promise<User | undefined>;
   createUser(user: Omit<User, 'id'>): Promise<User>;
   updateUser(user: User): Promise<void>;
-  deleteUser(id: string): Promise<void>;
   getUsersByRole(role: string): Promise<User[]>;
+
+  // Vehicles
+  getAllVehicles(): Promise<Vehicle[]>;
+  createVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle>;
+  updateVehicle(vehicle: Vehicle): Promise<void>;
+  deleteVehicle(id: string): Promise<void>;
+
+  // Drivers
+  getAllDrivers(): Promise<Driver[]>;
+  createDriver(driver: Omit<Driver, 'id'>): Promise<Driver>;
+  updateDriver(driver: Driver): Promise<void>;
+  deleteDriver(id: string): Promise<void>;
 
   // Backup Links
   getAllBackupLinks(): Promise<BackupLink[]>;

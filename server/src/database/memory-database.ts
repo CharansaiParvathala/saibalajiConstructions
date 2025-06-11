@@ -1,217 +1,147 @@
-import { v4 as uuidv4 } from 'uuid';
 import { Database } from './types';
 import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../../src/lib/types';
+import { StorageService } from '../services/storage-service';
 
 export class MemoryDatabase implements Database {
-  private projects: Project[] = [];
-  private paymentRequests: PaymentRequest[] = [];
-  private progressUpdates: ProgressUpdate[] = [];
-  private vehicles: Vehicle[] = [];
-  private drivers: Driver[] = [];
-  private users: User[] = [];
-  private backupLinks: BackupLink[] = [];
-  private finalSubmissions: FinalSubmission[] = [];
+  private storage: StorageService;
+
+  constructor() {
+    this.storage = StorageService.getInstance();
+  }
 
   // Projects
   async getProjects(): Promise<Project[]> {
-    return this.projects;
+    return this.storage.getProjects();
   }
 
   async getProjectById(id: string): Promise<Project | undefined> {
-    return this.projects.find(project => project.id === id);
+    return this.storage.getProjectById(id);
   }
 
   async getProjectsByLeaderId(leaderId: string): Promise<Project[]> {
-    return this.projects.filter(project => project.leaderId === leaderId);
+    return this.storage.getProjectsByLeaderId(leaderId);
   }
 
   async saveProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
-    const newProject: Project = {
-      ...project,
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-    };
-    this.projects.push(newProject);
-    return newProject;
+    return this.storage.saveProject(project);
   }
 
   async updateProject(project: Project): Promise<void> {
-    const index = this.projects.findIndex(p => p.id === project.id);
-    if (index !== -1) {
-      this.projects[index] = project;
-    }
+    await this.storage.updateProject(project);
   }
 
   // Payment Requests
   async getPaymentRequests(): Promise<PaymentRequest[]> {
-    return this.paymentRequests;
+    return this.storage.getPaymentRequests();
   }
 
   async getPaymentRequestsByProjectId(projectId: string): Promise<PaymentRequest[]> {
-    return this.paymentRequests.filter(request => request.projectId === projectId);
+    return this.storage.getPaymentRequestsByProjectId(projectId);
   }
 
   async savePaymentRequest(paymentRequest: Omit<PaymentRequest, 'id' | 'createdAt'>): Promise<PaymentRequest> {
-    const newPaymentRequest: PaymentRequest = {
-      ...paymentRequest,
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-    };
-    this.paymentRequests.push(newPaymentRequest);
-    return newPaymentRequest;
+    return this.storage.savePaymentRequest(paymentRequest);
   }
 
   async updatePaymentRequest(paymentRequest: PaymentRequest): Promise<void> {
-    const index = this.paymentRequests.findIndex(p => p.id === paymentRequest.id);
-    if (index !== -1) {
-      this.paymentRequests[index] = paymentRequest;
-    }
+    await this.storage.updatePaymentRequest(paymentRequest);
   }
 
   // Progress Updates
   async getProgressUpdates(): Promise<ProgressUpdate[]> {
-    return this.progressUpdates;
+    return this.storage.getProgressUpdates();
   }
 
   async getProgressUpdatesByProjectId(projectId: string): Promise<ProgressUpdate[]> {
-    return this.progressUpdates.filter(update => update.projectId === projectId);
+    return this.storage.getProgressUpdatesByProjectId(projectId);
   }
 
   async addProgressUpdate(update: ProgressUpdate): Promise<void> {
-    this.progressUpdates.push(update);
-  }
-
-  async getProgressUpdateById(id: string): Promise<ProgressUpdate | undefined> {
-    return this.progressUpdates.find(update => update.id === id);
-  }
-
-  // Vehicles
-  async getAllVehicles(): Promise<Vehicle[]> {
-    return this.vehicles;
-  }
-
-  async createVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle> {
-    const newVehicle: Vehicle = {
-      ...vehicle,
-      id: uuidv4(),
-    };
-    this.vehicles.push(newVehicle);
-    return newVehicle;
-  }
-
-  async updateVehicle(vehicle: Vehicle): Promise<void> {
-    const index = this.vehicles.findIndex(v => v.id === vehicle.id);
-    if (index !== -1) {
-      this.vehicles[index] = vehicle;
-    }
-  }
-
-  async deleteVehicle(id: string): Promise<void> {
-    this.vehicles = this.vehicles.filter(v => v.id !== id);
-  }
-
-  async getVehicleById(id: string): Promise<Vehicle | undefined> {
-    return this.vehicles.find(vehicle => vehicle.id === id);
-  }
-
-  // Drivers
-  async getAllDrivers(): Promise<Driver[]> {
-    return this.drivers;
-  }
-
-  async createDriver(driver: Omit<Driver, 'id'>): Promise<Driver> {
-    const newDriver: Driver = {
-      ...driver,
-      id: uuidv4(),
-    };
-    this.drivers.push(newDriver);
-    return newDriver;
-  }
-
-  async updateDriver(driver: Driver): Promise<void> {
-    const index = this.drivers.findIndex(d => d.id === driver.id);
-    if (index !== -1) {
-      this.drivers[index] = driver;
-    }
-  }
-
-  async deleteDriver(id: string): Promise<void> {
-    this.drivers = this.drivers.filter(d => d.id !== id);
+    await this.storage.addProgressUpdate(update);
   }
 
   // Users
   async getUsers(): Promise<User[]> {
-    return this.users;
+    return this.storage.getUsers();
   }
 
   async getUserById(id: string): Promise<User | undefined> {
-    return this.users.find(user => user.id === id);
+    return this.storage.getUserById(id);
   }
 
   async createUser(user: Omit<User, 'id'>): Promise<User> {
-    const newUser: User = {
-      ...user,
-      id: uuidv4(),
-    };
-    this.users.push(newUser);
-    return newUser;
+    return this.storage.createUser(user);
   }
 
   async updateUser(user: User): Promise<void> {
-    const index = this.users.findIndex(u => u.id === user.id);
-    if (index !== -1) {
-      this.users[index] = user;
-    }
-  }
-
-  async deleteUser(id: string): Promise<void> {
-    this.users = this.users.filter(u => u.id !== id);
+    await this.storage.updateUser(user);
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    return this.users.filter(user => user.role === role);
+    return this.storage.getUsersByRole(role);
+  }
+
+  // Vehicles
+  async getAllVehicles(): Promise<Vehicle[]> {
+    return this.storage.getAllVehicles();
+  }
+
+  async createVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle> {
+    return this.storage.createVehicle(vehicle);
+  }
+
+  async updateVehicle(vehicle: Vehicle): Promise<void> {
+    await this.storage.updateVehicle(vehicle);
+  }
+
+  async deleteVehicle(id: string): Promise<void> {
+    await this.storage.deleteVehicle(id);
+  }
+
+  // Drivers
+  async getAllDrivers(): Promise<Driver[]> {
+    return this.storage.getAllDrivers();
+  }
+
+  async createDriver(driver: Omit<Driver, 'id'>): Promise<Driver> {
+    return this.storage.createDriver(driver);
+  }
+
+  async updateDriver(driver: Driver): Promise<void> {
+    await this.storage.updateDriver(driver);
+  }
+
+  async deleteDriver(id: string): Promise<void> {
+    await this.storage.deleteDriver(id);
   }
 
   // Backup Links
   async getAllBackupLinks(): Promise<BackupLink[]> {
-    return this.backupLinks;
+    return this.storage.getAllBackupLinks();
   }
 
   async createBackupLink(link: Omit<BackupLink, 'id' | 'createdAt'>): Promise<BackupLink> {
-    const newLink: BackupLink = {
-      ...link,
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-    };
-    this.backupLinks.push(newLink);
-    return newLink;
+    return this.storage.createBackupLink(link);
   }
 
   async deleteBackupLink(id: string): Promise<void> {
-    this.backupLinks = this.backupLinks.filter(link => link.id !== id);
+    await this.storage.deleteBackupLink(id);
   }
 
   // Final Submissions
   async getFinalSubmissions(): Promise<FinalSubmission[]> {
-    return this.finalSubmissions;
+    return this.storage.getFinalSubmissions();
   }
 
   async saveFinalSubmission(submission: Omit<FinalSubmission, 'id' | 'createdAt' | 'updatedAt'>): Promise<FinalSubmission> {
-    const newSubmission: FinalSubmission = {
-      ...submission,
-      id: uuidv4(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    this.finalSubmissions.push(newSubmission);
-    return newSubmission;
+    return this.storage.saveFinalSubmission(submission);
   }
 
   async getFinalSubmissionsByLeader(leaderId: string): Promise<FinalSubmission[]> {
-    return this.finalSubmissions.filter(submission => submission.leaderId === leaderId);
+    return this.storage.getFinalSubmissionsByLeader(leaderId);
   }
 
   async getFinalSubmissionsByProject(projectId: string): Promise<FinalSubmission[]> {
-    return this.finalSubmissions.filter(submission => submission.projectId === projectId);
+    return this.storage.getFinalSubmissionsByProject(projectId);
   }
 } 

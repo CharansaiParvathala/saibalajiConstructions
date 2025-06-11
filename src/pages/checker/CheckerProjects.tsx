@@ -10,7 +10,7 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
-import { getProjects, getProgressUpdates } from '@/lib/api-client';
+import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
 import { Project, ProgressUpdate } from '@/lib/types';
 import { MapView } from '@/components/shared/map-view';
 
@@ -27,8 +27,8 @@ const CheckerProjects = () => {
     const loadProjects = async () => {
       try {
         const allProjects = await getProjects();
-        setProjects(allProjects);
-        setFilteredProjects(allProjects);
+    setProjects(allProjects);
+    setFilteredProjects(allProjects);
       } catch (error) {
         console.error('Error loading projects:', error);
       }
@@ -48,14 +48,14 @@ const CheckerProjects = () => {
     setSelectedProject(project);
     
     try {
-      // Get all progress updates for this project
+    // Get all progress updates for this project
       const updates = await getProgressUpdates();
       const projectUpdates = updates
         .filter(update => update.projectId === project.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
+    
       setProjectProgress(projectUpdates);
-      setShowDialog(true);
+    setShowDialog(true);
     } catch (error) {
       console.error('Error loading project details:', error);
     }

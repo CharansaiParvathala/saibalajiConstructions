@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileText, Download, FileOutput, Printer, FilePlus, Image } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { getProjects, getProgressUpdates } from '@/lib/api-client';
+import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
 import { 
   exportToPDF, 
@@ -143,14 +143,14 @@ const AdminExportData = () => {
 
   const handleExportImages = async () => {
     if (!selectedProject) return;
-    
+
     try {
       setLoading(prev => ({ ...prev, image: true }));
       toast.info(t("common.generating"));
-      
+
       const projectUpdates = progressUpdates.filter(update => update.projectId === selectedProject.id);
       await exportProjectImages(selectedProject, projectUpdates, aspectRatio);
-      
+
       toast.success(t("common.exportSuccess"));
     } catch (error) {
       console.error("Image export error:", error);
@@ -199,7 +199,7 @@ const AdminExportData = () => {
                 <Label
                   htmlFor="projects"
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                >
+              >
                   <FileText className="mb-3 h-6 w-6" />
                   <span>{t('app.export.type.projects')}</span>
                 </Label>
@@ -214,7 +214,7 @@ const AdminExportData = () => {
                 <Label
                   htmlFor="project"
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                >
+              >
                   <FileOutput className="mb-3 h-6 w-6" />
                   <span>{t('app.export.type.project')}</span>
                 </Label>
@@ -233,29 +233,29 @@ const AdminExportData = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
                   <Label htmlFor="project">{t('app.export.project.select')}</Label>
-                  <Select
-                    value={selectedProject?.id}
-                    onValueChange={(value) => {
-                      const project = projects.find(p => p.id === value);
-                      setSelectedProject(project || null);
-                    }}
-                  >
-                    <SelectTrigger>
+                      <Select
+                        value={selectedProject?.id}
+                        onValueChange={(value) => {
+                          const project = projects.find(p => p.id === value);
+                          setSelectedProject(project || null);
+                        }}
+                      >
+                        <SelectTrigger>
                       <SelectValue placeholder={t('app.export.project.placeholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
+                        </SelectTrigger>
+                        <SelectContent>
                       {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                 {/* Image Export Options */}
                 <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
                   <DialogTrigger asChild>
@@ -321,12 +321,12 @@ const AdminExportData = () => {
                           </div>
                         </RadioGroup>
                       </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardContent>
+        </Card>
         )}
         
         {/* Export Actions */}

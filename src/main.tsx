@@ -21,13 +21,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <Router>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <LanguageProvider>
-            <AuthProvider>
-              <App />
-              <Toaster />
-            </AuthProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+      <LanguageProvider>
+          <AuthProvider>
+            <App />
+            <Toaster />
+          </AuthProvider>
+      </LanguageProvider>
+    </ThemeProvider>
       </Router>
     </QueryClientProvider>
   </React.StrictMode>

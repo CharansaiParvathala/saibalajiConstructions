@@ -13,7 +13,7 @@ import {
   DialogTitle 
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getProjects, getProgressUpdates, getPaymentRequests, getUsers } from '@/lib/api-client';
+import { getProjects, getProgressUpdates, getPaymentRequests, getUsers } from '@/lib/api/api-client';
 import { Project, ProgressUpdate, PaymentRequest, User } from '@/lib/types';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { MapView } from '@/components/shared/map-view';
@@ -34,8 +34,8 @@ const OwnerProjects = () => {
     const loadProjects = async () => {
       try {
         const allProjects = await getProjects();
-        setProjects(allProjects);
-        setFilteredProjects(allProjects);
+    setProjects(allProjects);
+    setFilteredProjects(allProjects);
       } catch (error) {
         console.error('Error loading projects:', error);
       }
@@ -55,26 +55,26 @@ const OwnerProjects = () => {
     setSelectedProject(project);
     
     try {
-      // Get project leader
+    // Get project leader
       const users = await getUsers();
       const leader = users.find(u => u.id === project.leaderId);
       setProjectLeader(leader || null);
-      
-      // Get all progress updates for this project
+    
+    // Get all progress updates for this project
       const updates = await getProgressUpdates();
       const projectUpdates = updates
         .filter(update => update.projectId === project.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setProjectProgress(projectUpdates);
-      
-      // Get all payment requests for this project
+    
+    // Get all payment requests for this project
       const payments = await getPaymentRequests();
       const projectPayments = payments
         .filter(payment => payment.projectId === project.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setProjectPayments(projectPayments);
-      
-      setShowDialog(true);
+    
+    setShowDialog(true);
     } catch (error) {
       console.error('Error loading project details:', error);
     }

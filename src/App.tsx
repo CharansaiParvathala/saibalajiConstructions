@@ -49,14 +49,14 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
 
 function App() {
   return (
-    <Routes>
+            <Routes>
       {/* Public routes */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              
       {/* Protected routes */}
-      {/* Admin routes */}
+                {/* Admin routes */}
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminDashboard />
@@ -102,8 +102,8 @@ function App() {
           <AdminCreateTender />
         </ProtectedRoute>
       } />
-      
-      {/* Leader routes */}
+                
+                {/* Leader routes */}
       <Route path="/leader" element={
         <ProtectedRoute allowedRoles={['leader']}>
           <LeaderDashboard />
@@ -139,8 +139,8 @@ function App() {
           <LeaderFinalSubmission />
         </ProtectedRoute>
       } />
-      
-      {/* Owner routes */}
+                
+                {/* Owner routes */}
       <Route path="/owner" element={
         <ProtectedRoute allowedRoles={['owner']}>
           <OwnerDashboard />
@@ -166,8 +166,8 @@ function App() {
           <OwnerBackupLinks />
         </ProtectedRoute>
       } />
-      
-      {/* Checker routes */}
+                
+                {/* Checker routes */}
       <Route path="/checker" element={
         <ProtectedRoute allowedRoles={['checker']}>
           <CheckerDashboard />
@@ -191,11 +191,11 @@ function App() {
       
       {/* Default route */}
       <Route path="/" element={<Navigate to="/login" replace />} />
-      
-      {/* 404 route */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+              
+              {/* 404 route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
   );
-}
+    }
 
 export default App;

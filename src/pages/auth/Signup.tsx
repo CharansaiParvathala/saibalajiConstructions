@@ -12,7 +12,7 @@ import { AuthLogo } from '@/components/auth/AuthLogo';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 
 export default function Signup() {
-  const { signup } = useAuth();
+  const { register } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -59,7 +59,7 @@ export default function Signup() {
     setLoading(true);
     
     try {
-      await signup(formData);
+      await register(formData.email, formData.password, formData.name, formData.role);
       toast.success(t('app.auth.signupSuccess'));
       navigate('/dashboard');
     } catch (error) {
@@ -73,14 +73,12 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     setLoading(true);
     try {
-      await signup({
-        name: "Admin User",
-        email: "admin@saibalaji.com",
-        phone: "1234567890",
-        role: "admin",
-        password: "password123",
-        confirmPassword: "password123"
-      });
+      await register(
+        "admin@saibalaji.com",
+        "password123",
+        "Admin User",
+        "admin"
+      );
       toast.success(t('app.auth.signupSuccess'));
       navigate('/dashboard');
     } catch (error) {

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
 import { useLanguage } from '@/context/language-context';
-import { apiRequest } from '@/lib/api-client';
+import { createProject } from '@/lib/api/api-client';
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -52,15 +52,12 @@ const LeaderCreateProject = () => {
     setIsSubmitting(true);
     
     try {
-      const newProject = await apiRequest('/projects', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: values.name,
-          leaderId: user.id,
-          workers: parseInt(values.workers),
-          totalWork: parseFloat(values.totalWork),
-          completedWork: 0
-        }),
+      const newProject = await createProject({
+        name: values.name,
+        leaderId: user.id,
+        workers: parseInt(values.workers),
+        totalWork: parseFloat(values.totalWork),
+        completedWork: 0
       });
       
       toast.success("Project created successfully");

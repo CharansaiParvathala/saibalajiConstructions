@@ -96,7 +96,7 @@ export default function Login() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">{t('app.auth.password')}</Label>
+                <Label htmlFor="password" className="text-sm font-medium">{t('app.auth.password')}</Label>
               <div className="relative">
                 <Input 
                   id="password" 

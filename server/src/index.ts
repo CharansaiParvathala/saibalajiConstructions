@@ -3,12 +3,14 @@ import cors from 'cors';
 import { MemoryDatabase } from './database/memory-database';
 import { Database } from './database/types';
 import { createAuthRouter } from './routes/auth';
+import { StorageService } from './services/storage-service';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Initialize database
+// Initialize database and storage
 const db: Database = new MemoryDatabase();
+const storage = StorageService.getInstance();
 
 // Middleware
 app.use(cors({
@@ -26,14 +28,19 @@ const authenticate = async (req: Request, res: Response, next: Function) => {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const user = await db.getUserById(userId as string);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid user' });
-  }
+  try {
+    const user = await db.getUserById(userId as string);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid user' });
+    }
 
-  // Add user to request for use in routes
-  (req as any).user = user;
-  next();
+    // Add user to request for use in routes
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ error: 'Authentication failed' });
+  }
 };
 
 // Protected routes
@@ -47,39 +54,52 @@ app.use('/api/users', authenticate);
 // Projects routes
 app.get('/api/projects', async (req: Request, res: Response) => {
   try {
+    console.log('GET /api/projects - Fetching all projects');
     const projects = await db.getProjects();
+    console.log('Found projects:', projects);
     res.json(projects);
   } catch (error) {
+    console.error('Error fetching projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
   }
 });
 
 app.get('/api/projects/:id', async (req: Request, res: Response) => {
   try {
+    console.log('GET /api/projects/:id - Fetching project:', req.params.id);
     const project = await db.getProjectById(req.params.id);
     if (!project) {
+      console.log('Project not found:', req.params.id);
       return res.status(404).json({ error: 'Project not found' });
     }
+    console.log('Found project:', project);
     res.json(project);
   } catch (error) {
+    console.error('Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
   }
 });
 
 app.post('/api/projects', async (req: Request, res: Response) => {
   try {
+    console.log('POST /api/projects - Creating new project:', req.body);
     const project = await db.saveProject(req.body);
+    console.log('Created project:', project);
     res.status(201).json(project);
   } catch (error) {
+    console.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }
 });
 
 app.put('/api/projects/:id', async (req: Request, res: Response) => {
   try {
+    console.log('PUT /api/projects/:id - Updating project:', req.params.id, req.body);
     await db.updateProject(req.body);
+    console.log('Project updated successfully');
     res.status(200).json({ message: 'Project updated successfully' });
   } catch (error) {
+    console.error('Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
   }
 });
