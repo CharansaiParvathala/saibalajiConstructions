@@ -27,9 +27,9 @@ export interface AuthResponse {
   token: string;
 }
 
-async function registerUser(email, password, name, role) {
+async function registerUser(email, password, name, role, mobile_number) {
   try {
-    console.log('Starting user registration:', { email, name, role });
+    console.log('Starting user registration:', { email, name, role, mobile_number });
     
     // Check if user already exists
     const [existingUsers] = await pool.execute(
@@ -49,8 +49,8 @@ async function registerUser(email, password, name, role) {
 
     // Insert new user
     const [result] = await pool.execute(
-      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
-      [email, hashedPassword, name, role]
+      'INSERT INTO users (email, password, name, role, mobile_number) VALUES (?, ?, ?, ?, ?)',
+      [email, hashedPassword, name, role, mobile_number]
     );
 
     const userId = result.insertId;
@@ -66,7 +66,7 @@ async function registerUser(email, password, name, role) {
 
     // Get the created user
     const [users] = await pool.execute(
-      'SELECT id, email, name, role FROM users WHERE id = ?',
+      'SELECT id, email, name, role, mobile_number FROM users WHERE id = ?',
       [userId]
     );
 

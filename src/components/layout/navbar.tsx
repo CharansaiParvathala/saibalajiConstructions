@@ -46,7 +46,7 @@ export function Navbar() {
       case 'leader':
         return [
           { name: t('app.navigation.dashboard'), path: '/leader' },
-          { name: t('app.navigation.createProject'), path: '/leader/create-project' },
+          { name: t('app.navigation.createProject'), path: '/leader/projects/new' },
           { name: t('app.navigation.addProgress'), path: '/leader/add-progress' },
           { name: t('app.navigation.viewProgress'), path: '/leader/view-progress' },
           { name: t('app.navigation.requestPayment'), path: '/leader/request-payment' },
@@ -87,7 +87,7 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="bg-background border-b sticky top-0 z-50">
+      <nav className="bg-background border-b z-50">
         <div className="container mx-auto px-4 flex items-center justify-between h-14">
           {/* Mobile Menu Button */}
           <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
@@ -183,7 +183,7 @@ export function Navbar() {
               </DropdownMenu>
             ) : (
               <div className="hidden md:flex items-center space-x-2">
-                <Button variant="ghost" size="sm" asChild>
+                <Button size="sm" variant="ghost" asChild>
                   <Link to="/login">{t('app.auth.login')}</Link>
                 </Button>
                 <Button size="sm" asChild>

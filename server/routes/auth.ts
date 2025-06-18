@@ -1,6 +1,8 @@
-const express = require('express');
-const { pool } = require('../db/config');
-const { registerUser, loginUser, getUserById, verifyToken } = require('../services/auth');
+import express, { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { pool } from '../db/config';
+import { registerUser, loginUser, getUserById, verifyToken } from '../services/auth';
 
 const router = express.Router();
 
@@ -19,110 +21,131 @@ router.get('/test-db', async (req, res) => {
 });
 
 // Register new user
-router.post('/register', async (req, res) => {
+router.post('/register', async (req: Request, res: Response) => {
   try {
-    console.log('Registration request received:', req.body);
-    const { email, password, name, role } = req.body;
+    const { name, email, password, role } = req.body;
 
-    if (!email || !password || !name || !role) {
-      console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name, role: !!role });
+    // Validate required fields
+    if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    console.log('Attempting to register user:', { email, name, role });
-    const result = await registerUser(email, password, name, role);
-    console.log('Registration successful:', { userId: result.user.id });
-    res.status(201).json(result);
+    // Check if user already exists
+    const [existingUsers] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (Array.isArray(existingUsers) && existingUsers.length > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Insert new user
+    const [result] = await pool.query(
+      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+      [name, email, hashedPassword, role]
+    );
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: (result as any).insertId, role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      user: {
+        id: (result as any).insertId,
+        name,
+        email,
+        role
+      },
+      token
+    });
   } catch (error) {
-    console.error('Registration error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    res.status(500).json({ 
-      error: 'Registration failed',
-      message: error.message,
-      code: error.code
-    });
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Failed to register user' });
   }
 });
 
 // Login user
-router.post('/login', async (req, res) => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
-    console.log('Login request received:', { email: req.body.email });
     const { email, password } = req.body;
 
+    // Validate required fields
     if (!email || !password) {
-      console.log('Missing credentials:', { email: !!email, password: !!password });
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    console.log('Attempting to login user:', { email });
-    const result = await loginUser(email, password);
-    if (!result) {
-      console.log('Invalid credentials for:', { email });
+    // Find user
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (!Array.isArray(users) || users.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    console.log('Login successful:', { userId: result.user.id });
-    res.json(result);
+    const user = users[0] as any;
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      },
+      token
+    });
   } catch (error) {
-    console.error('Login error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    res.status(500).json({ 
-      error: 'Login failed',
-      message: error.message,
-      code: error.code
-    });
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
   }
 });
 
 // Get current user
-router.get('/current-user', async (req, res) => {
+router.get('/current-user', async (req: Request, res: Response) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
     if (!token) {
-      console.log('No token provided in request');
-      return res.status(401).json({ error: 'No token provided' });
+      return res.status(401).json({ error: 'Authentication token required' });
     }
 
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      console.log('Invalid token provided');
-      return res.status(401).json({ error: 'Invalid token' });
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as {
+      id: number;
+      role: string;
+    };
 
-    console.log('Fetching user:', { userId: decoded.id });
-    const user = await getUserById(decoded.id);
-    if (!user) {
-      console.log('User not found:', { userId: decoded.id });
+    const [users] = await pool.query('SELECT id, name, email, role FROM users WHERE id = ?', [decoded.id]);
+    if (!Array.isArray(users) || users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('User fetched successfully:', { userId: user.id });
-    res.json(user);
+    res.json(users[0]);
   } catch (error) {
-    console.error('Get current user error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
-    res.status(500).json({ 
-      error: 'Failed to get current user',
-      message: error.message,
-      code: error.code
-    });
+    console.error('Get current user error:', error);
+    res.status(401).json({ error: 'Invalid token' });
   }
 });
 
 // Logout user
-router.post('/logout', (req, res) => {
-  console.log('Logout request received');
-  res.json({ message: 'Logged out successfully' });
+router.post('/logout', (req: Request, res: Response) => {
+  // Since we're using JWT, we don't need to do anything on the server
+  // The client should remove the token
+  res.status(200).json({ message: 'Logged out successfully' });
 });
 
-module.exports = router; 
+export default router; 

@@ -3,55 +3,103 @@ import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
-} from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { getProjectsByLeaderId, getAllPaymentRequests, getProjectById } from '@/lib/storage';
-import { Project, PaymentRequest } from '@/lib/types';
+import { Project } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
+import { getPaymentRequests, getProjects } from '@/lib/api/api-client';
+import { useNavigate } from 'react-router-dom';
+import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
 
 const LeaderViewPayment = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
-  const [showDialog, setShowDialog] = useState<boolean>(false);
+  const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
+  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
   
   useEffect(() => {
     if (user) {
-      const userProjects = getProjectsByLeaderId(user.id);
+      // Load projects from API
+      const fetchProjects = async () => {
+        try {
+          const allProjects = await getProjects();
+          const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
+          console.log('User Projects:', userProjects);
       setProjects(userProjects);
       
-      // Load all payment requests
-      const allPayments = getAllPaymentRequests();
-      const userPayments = allPayments.filter(payment => 
-        userProjects.some(project => project.id === payment.projectId)
-      ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      setPaymentRequests(userPayments);
-      
-      if (userProjects.length > 0 && !selectedProject) {
+          // Load payment requests from API
+          const payments = await getPaymentRequests(Number(user.id));
+          console.log('Payment Requests:', payments);
+          setPaymentRequests(payments);
+          
+          // Get unique project IDs from payments
+          const projectIds = [...new Set(payments.map(payment => payment.project_id))];
+          console.log('Project IDs from payments:', projectIds);
+          
+          // Filter projects to only those that have payments
+          const projectsWithPayments = userProjects.filter(project => 
+            projectIds.includes(project.id)
+          );
+          console.log('Projects with payments:', projectsWithPayments);
+          
+          setAvailableProjects(projectsWithPayments);
+          
+          // Set initial selected project if there are projects with payments
+          if (projectsWithPayments.length > 0 && !selectedProject) {
         setSelectedProject('all');
       }
+          
+          // Load images for all payment requests
+          await loadImagesForPayments(payments);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+        }
+      };
+      
+      fetchProjects();
     }
   }, [user]);
   
+  const loadImagesForPayments = async (payments: any[]) => {
+    const newImageUrls: { [key: string]: string } = {};
+    
+    for (const payment of payments) {
+      if (payment.image_ids && payment.image_ids.length > 0) {
+        for (const imageId of payment.image_ids) {
+          const key = `${payment.id}-${imageId}`;
+          try {
+            const imageUrl = await displayImage(imageId, 'payment-request');
+            newImageUrls[key] = imageUrl;
+          } catch (error) {
+            console.error(`Error loading image ${imageId}:`, error);
+          }
+        }
+      }
+    }
+    
+    setImageUrls(newImageUrls);
+  };
+  
+  // Cleanup blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      Object.values(imageUrls).forEach(url => {
+        revokeBlobUrl(url);
+      });
+    };
+  }, [imageUrls]);
+  
   // Filter payment requests based on selected project
   const filteredPayments = selectedProject === 'all'
-    ? paymentRequests
-    : paymentRequests.filter(payment => payment.projectId === selectedProject);
+    ? paymentRequests.filter(payment => payment.user_id === user?.id)
+    : paymentRequests.filter(payment => payment.project_id.toString() === selectedProject);
   
-  const handleViewPayment = (payment: PaymentRequest) => {
-    setSelectedPayment(payment);
-    setShowDialog(true);
+  const handleViewDetails = (payment: any) => {
+    navigate(`/leader/payment/${payment.id}`);
   };
   
   const getStatusBadge = (status: string) => {
@@ -76,12 +124,27 @@ const LeaderViewPayment = () => {
   };
   
   const getProjectName = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    return project ? project.name : t('app.payment.unknownProject');
+    const project = projects.find(p => p.id === parseInt(projectId));
+    return project ? project.title : t('app.payment.unknownProject');
   };
   
+  // Group payments by creation time
+  const groupedPayments = filteredPayments.reduce((groups: Record<string, any[]>, payment: any) => {
+    const date = new Date(payment.created_at).toISOString();
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(payment);
+    return groups;
+  }, {} as Record<string, any[]>);
+
+  // Sort dates in descending order
+  const sortedDates = Object.keys(groupedPayments).sort((a, b) => 
+    new Date(b).getTime() - new Date(a).getTime()
+  );
+  
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.payment.title')}</h1>
       <p className="text-muted-foreground mb-8">
         {t('app.payment.description')}
@@ -98,79 +161,100 @@ const LeaderViewPayment = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('app.payment.allProjects')}</SelectItem>
-            {projects.map((project) => (
-              <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+            {availableProjects.map((project) => (
+              <SelectItem key={project.id} value={project.id.toString()}>{project.title}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2">
-        {filteredPayments.map((payment) => (
-          <Card key={payment.id}>
+      <div className="grid gap-6">
+        {sortedDates.map((date) => {
+          const payments = groupedPayments[date];
+          const totalAmount = payments.reduce((sum: number, payment: any) => sum + (payment.total_amount || 0), 0);
+          
+          return (
+            <Card key={date}>
             <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>{getProjectName(payment.projectId)}</span>
-                <span className="text-lg font-normal">₹ {payment.totalAmount}</span>
-              </CardTitle>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>{formatDate(date)}</CardTitle>
               <CardDescription>
-                {t('app.payment.requestedOn')} {formatDate(payment.date)}
+                      {payments.length} {payments.length === 1 ? 'payment request' : 'payment requests'}
               </CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold">₹ {Number(totalAmount).toFixed(2)}</div>
+                    <div className="text-sm text-muted-foreground">Total Amount</div>
+                  </div>
+                </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                  {payments.map((payment) => (
+                    <div key={payment.id} className="border-b last:border-0 pb-4 last:pb-0">
+                      <div className="flex justify-between items-start mb-2">
                 <div>
-                  <p className="font-medium">{t('app.payment.status')}</p>
+                          <h3 className="font-medium">{payment.description}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {payment.expenses ? `${payment.expenses.length} expense(s)` : 'No expenses'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">₹ {Number(payment.total_amount || 0).toFixed(2)}</div>
                   <div className="mt-1">{getStatusBadge(payment.status)}</div>
+                        </div>
                 </div>
                 
-                <div>
-                  <p className="font-medium">{t('app.payment.purposes')}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {payment.purposes.map((purpose, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-0.5 bg-muted rounded-full text-xs"
-                      >
-                        {purpose.type} (₹ {purpose.amount})
-                      </span>
-                    ))}
+                      {payment.image_ids && payment.image_ids.length > 0 && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {payment.image_ids.slice(0, 2).map((imageId: number, index: number) => {
+                            const imageKey = `${payment.id}-${imageId}`;
+                            const imageUrl = imageUrls[imageKey];
+                            return (
+                              <div key={index} className="w-full h-24 bg-gray-100 rounded-lg overflow-hidden">
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={`Payment proof ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                    Loading...
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      
+                      <div className="mt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(payment)}
+                        >
+                          {t('app.payment.viewDetails')}
+                        </Button>
+                      </div>
                   </div>
-                </div>
-                
-                {payment.checkerNotes && (
-                  <div>
-                    <p className="font-medium">{t('app.payment.checkerNotes')}</p>
-                    <p className="text-sm text-muted-foreground">{payment.checkerNotes}</p>
-                  </div>
-                )}
-                
-                {payment.scheduledDate && payment.status === 'scheduled' && (
-                  <div>
-                    <p className="font-medium">{t('app.payment.scheduledFor')}</p>
-                    <p className="text-sm text-muted-foreground">{formatDate(payment.scheduledDate)}</p>
-                  </div>
-                )}
+                  ))}
               </div>
             </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => handleViewPayment(payment)}
-              >
-                {t('app.payment.viewDetails')}
-              </Button>
-            </CardFooter>
           </Card>
-        ))}
+          );
+        })}
         
-        {filteredPayments.length === 0 && (
+        {sortedDates.length === 0 && (
           <Card className="col-span-2">
             <CardHeader>
               <CardTitle>{t('app.payment.noRequests')}</CardTitle>
               <CardDescription>
-                {t('app.payment.noRequestsDescription')}
+                {selectedProject === 'all' 
+                  ? t('app.payment.noRequestsDescription')
+                  : t('app.payment.noRequestsForProject')}
               </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -181,84 +265,6 @@ const LeaderViewPayment = () => {
           </Card>
         )}
       </div>
-      
-      {/* Payment Details Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{t('app.payment.details.title')}</DialogTitle>
-            <DialogDescription>
-              {t('app.payment.details.requestedOn')} {selectedPayment && formatDate(selectedPayment.date)}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedPayment && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold mb-2">{t('app.payment.details.projectInfo')}</h3>
-                  <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">{t('app.payment.details.project')}:</span> {getProjectName(selectedPayment.projectId)}</p>
-                    <p><span className="font-medium">{t('app.payment.details.date')}:</span> {formatDate(selectedPayment.date)}</p>
-                    <p><span className="font-medium">{t('app.payment.details.totalAmount')}:</span> ₹ {selectedPayment.totalAmount}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">{t('app.payment.details.statusInfo')}</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">{t('app.payment.details.currentStatus')}:</span>{' '}
-                      {getStatusBadge(selectedPayment.status)}
-                    </p>
-                    {selectedPayment.checkerNotes && (
-                      <p>
-                        <span className="font-medium">{t('app.payment.details.checkerNotes')}:</span>{' '}
-                        {selectedPayment.checkerNotes}
-                      </p>
-                    )}
-                    {selectedPayment.scheduledDate && selectedPayment.status === 'scheduled' && (
-                      <p>
-                        <span className="font-medium">{t('app.payment.details.scheduledFor')}:</span>{' '}
-                        {formatDate(selectedPayment.scheduledDate)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold mb-2">{t('app.payment.details.paymentPurposes')}</h3>
-                <div className="space-y-4">
-                  {selectedPayment.purposes.map((purpose, index) => (
-                    <div key={index} className="border rounded-md p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium capitalize">{purpose.type}</h4>
-                        <span>₹ {purpose.amount}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {purpose.images.map((image, imgIndex) => (
-                          <div key={imgIndex} className="relative">
-                            <img
-                              src={image.dataUrl}
-                              alt={`${purpose.type} ${t('app.payment.details.image')} ${imgIndex + 1}`}
-                              className="w-full aspect-video object-cover rounded-md"
-                            />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                              {new Date(image.timestamp).toLocaleTimeString()}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

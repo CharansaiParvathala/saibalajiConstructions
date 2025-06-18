@@ -23,14 +23,16 @@ const LeaderDashboard = () => {
         try {
           // Get all projects and filter by leader ID
           const allProjects = await getProjects();
-          const userProjects = allProjects.filter(project => project.leaderId === user.id);
+          console.log('All projects:', allProjects);
+          const userProjects = allProjects.filter(project => project.leader_id === user.id);
+          console.log('User projects:', userProjects);
       setProjects(userProjects);
       
           // Get all payment requests and filter by leader's projects
           const allPayments = await getPaymentRequests();
       const leaderPayments = allPayments
         .filter(payment => 
-          userProjects.some(project => project.id === payment.projectId)
+              userProjects.some(project => project.id === payment.project_id)
         )
         .slice(0, 3);
       setRecentPayments(leaderPayments);
@@ -61,11 +63,11 @@ const LeaderDashboard = () => {
   };
 
   const calculateProgress = (project: Project) => {
-    if (project.totalWork === 0) return 0;
-    return Math.min(100, Math.round((project.completedWork / project.totalWork) * 100));
+    if (project.total_work === 0) return 0;
+    return Math.min(100, Math.round((project.completed_work / project.total_work) * 100));
   };
 
-  const hasCompletedProjects = projects.some(project => project.completedWork >= project.totalWork);
+  const hasCompletedProjects = projects.some(project => project.completed_work >= project.total_work);
 
   return (
     <div className="container mx-auto p-4">
@@ -96,7 +98,7 @@ const LeaderDashboard = () => {
             <p className="text-4xl font-bold">{projects.length}</p>
           </CardContent>
           <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => navigate('/leader/create-project')}>
+            <Button variant="outline" className="w-full" onClick={() => navigate('/leader/projects/new')}>
               Create New Project
             </Button>
           </CardFooter>
@@ -143,7 +145,7 @@ const LeaderDashboard = () => {
               <div className="text-center py-8">
                 <h3 className="text-lg font-semibold mb-2">{t('app.leader.dashboard.projects.empty.title')}</h3>
                 <p className="text-muted-foreground mb-4">{t('app.leader.dashboard.projects.empty.description')}</p>
-                <Button onClick={() => navigate('/leader/create-project')} className="w-full">
+                <Button onClick={() => navigate('/leader/projects/new')} className="w-full">
                   {t('app.leader.dashboard.projects.empty.button')}
                 </Button>
               </div>
@@ -154,12 +156,12 @@ const LeaderDashboard = () => {
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-semibold">{project.name}</h3>
+                          <h3 className="font-semibold">{project.title}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {t('app.common.createdOn')} {format(new Date(project.createdAt), 'MMM d, yyyy')}
+                            {t('app.common.createdOn')} {format(new Date(project.created_at), 'MMM d, yyyy')}
                           </p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/leader/view-progress/${project.id}`)}>
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/leader/projects/${project.id}`)}>
                           {t('app.common.viewDetails')}
                         </Button>
                       </div>
@@ -191,9 +193,9 @@ const LeaderDashboard = () => {
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-semibold">₹ {payment.totalAmount}</h3>
+                          <h3 className="font-semibold">₹ {Number(payment.total_amount || 0).toFixed(2)}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {t('app.common.requestedOn')} {format(new Date(payment.date), 'MMM d, yyyy')}
+                            {t('app.common.requestedOn')} {payment.created_at ? format(new Date(payment.created_at), 'MMM d, yyyy') : 'N/A'}
                           </p>
                         </div>
                         {getStatusBadge(payment.status)}

@@ -13,14 +13,14 @@ import { useLanguage } from '@/context/language-context';
 import { createProject } from '@/lib/api/api-client';
 
 const formSchema = z.object({
-  name: z.string().min(3, {
-    message: "Project name must be at least 3 characters.",
+  title: z.string().min(3, {
+    message: "Project title must be at least 3 characters.",
   }),
-  workers: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Workers must be a positive number.",
+  description: z.string().min(10, {
+    message: "Description must be at least 10 characters.",
   }),
   totalWork: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Total work distance must be a positive number.",
+    message: "Total work must be a positive number.",
   }),
 });
 
@@ -37,8 +37,8 @@ const LeaderCreateProject = () => {
   } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      workers: "",
+      title: "",
+      description: "",
       totalWork: "",
     },
   });
@@ -48,18 +48,31 @@ const LeaderCreateProject = () => {
       toast.error("You must be logged in to create a project");
       return;
     }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error("Authentication token missing. Please login again.");
+      navigate('/login');
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
-      const newProject = await createProject({
-        name: values.name,
-        leaderId: user.id,
-        workers: parseInt(values.workers),
-        totalWork: parseFloat(values.totalWork),
-        completedWork: 0
-      });
+      const projectData = {
+        title: values.title.trim(),
+        description: values.description.trim(),
+        leaderId: Number(user.id),
+        totalWork: Number(values.totalWork)
+      };
+
+      console.log('Creating project with values:', projectData);
+      console.log('User ID:', user.id);
+      console.log('Auth token:', token.substring(0, 10) + '...');
+
+      const newProject = await createProject(projectData);
       
+      console.log('Project created:', newProject);
       toast.success("Project created successfully");
       
       // Redirect to dashboard after short delay
@@ -67,23 +80,45 @@ const LeaderCreateProject = () => {
         navigate('/leader');
       }, 1500);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating project:", error);
+      
+      // Handle different types of errors
+      if (error?.response?.data?.error) {
+        const errorData = error.response.data;
+        if (errorData.details) {
+          // Show specific field errors
+          const missingFields = Object.entries(errorData.details)
+            .filter(([_, isMissing]) => isMissing)
+            .map(([field]) => field)
+            .join(', ');
+          toast.error(`Missing required fields: ${missingFields}`);
+        } else {
+          toast.error(errorData.error);
+        }
+      } else if (error?.message) {
+        if (typeof error.message === 'string' && 
+            (error.message.includes('token') || error.message.includes('login'))) {
+          navigate('/login');
+        }
+        toast.error(error.message);
+      } else {
       toast.error("Failed to create project. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
   
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.createProject.title')}</h1>
       <p className="text-muted-foreground mb-8">
         {t('app.createProject.description')}
       </p>
       
-      <div className="max-w-md mx-auto">
-        <Card>
+      <div className="w-full max-w-6xl mx-auto">
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>{t('app.createProject.details.title')}</CardTitle>
             <CardDescription>
@@ -92,41 +127,40 @@ const LeaderCreateProject = () => {
           </CardHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{t('app.createProject.details.name.label')}</Label>
+              <div className="space-y-2 w-full">
+                <Label htmlFor="title">{t('app.createProject.details.title.label')}</Label>
                 <Input
-                  id="name"
-                  placeholder={t('app.createProject.details.name.placeholder')}
-                  {...register("name")}
+                  id="title"
+                  placeholder={t('app.createProject.details.title.placeholder')}
+                  {...register("title")}
+                  className="w-full"
                 />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
+                {errors.title && (
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="workers">{t('app.createProject.details.workers.label')}</Label>
+              <div className="space-y-2 w-full">
+                <Label htmlFor="description">{t('app.createProject.details.description.label')}</Label>
                 <Input
-                  id="workers"
-                  type="number"
-                  placeholder={t('app.createProject.details.workers.placeholder')}
-                  min="1"
-                  {...register("workers")}
+                  id="description"
+                  placeholder={t('app.createProject.details.description.placeholder')}
+                  {...register("description")}
+                  className="w-full"
                 />
-                {errors.workers && (
-                  <p className="text-sm text-destructive">{errors.workers.message}</p>
+                {errors.description && (
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="totalWork">{t('app.createProject.details.distance.label')}</Label>
+              <div className="space-y-2 w-full">
+                <Label htmlFor="totalWork">{t('app.createProject.details.totalWork.label')}</Label>
                 <Input
                   id="totalWork"
                   type="number"
-                  placeholder={t('app.createProject.details.distance.placeholder')}
-                  min="1"
-                  step="0.01"
+                  placeholder={t('app.createProject.details.totalWork.placeholder')}
                   {...register("totalWork")}
+                  className="w-full"
                 />
                 {errors.totalWork && (
                   <p className="text-sm text-destructive">{errors.totalWork.message}</p>
@@ -134,7 +168,11 @@ const LeaderCreateProject = () => {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? "Creating..." : t('app.createProject.submit')}
               </Button>
             </CardFooter>

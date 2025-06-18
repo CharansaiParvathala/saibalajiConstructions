@@ -59,9 +59,15 @@ export default function Signup() {
     setLoading(true);
     
     try {
-      await register(formData.email, formData.password, formData.name, formData.role);
+      const response = await register(
+        formData.name,
+        formData.email,
+        formData.password,
+        formData.role,
+        formData.phone
+      );
       toast.success(t('app.auth.signupSuccess'));
-      navigate('/dashboard');
+      navigate(`/${formData.role.toLowerCase()}`);
     } catch (error) {
       console.error('Signup error:', error);
       toast.error(t('app.auth.signupError'));
@@ -73,14 +79,15 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     setLoading(true);
     try {
-      await register(
+      const response = await register(
         "admin@saibalaji.com",
         "password123",
         "Admin User",
-        "admin"
+        "admin",
+        "1234567890"
       );
       toast.success(t('app.auth.signupSuccess'));
-      navigate('/dashboard');
+      navigate('/admin');
     } catch (error) {
       console.error('Google signup error:', error);
       toast.error(t('app.auth.signupError'));

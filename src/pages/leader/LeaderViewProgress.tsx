@@ -4,7 +4,6 @@ import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/sonner';
-import { getProjectsByLeaderId, getProgressUpdatesByProjectId } from '@/lib/storage';
 import { Project, ProgressUpdate } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -15,34 +14,41 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog';
-import { MapView } from '@/components/shared/map-view';
-import { getVehicleById } from '@/lib/storage';
-import { Vehicle } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { File } from 'lucide-react';
+import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
+import { useParams } from 'react-router-dom';
+import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
 
 const LeaderViewProgress = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const { projectId } = useParams<{ projectId: string }>();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   const [selectedProgress, setSelectedProgress] = useState<ProgressUpdate | null>(null);
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [showDialog, setShowDialog] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
+  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
   
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const projects = getProjectsByLeaderId(user?.id || '');
-        setProjects(projects);
+        const allProjects = await getProjects();
+        const userProjects = allProjects.filter(project => project.leader_id === Number(user?.id));
+        setProjects(userProjects);
 
-        if (projects.length > 0) {
-          const updates = await getProgressUpdatesByProjectId(projects[0].id);
+        if (userProjects.length > 0) {
+          // If projectId is provided in URL, use it; otherwise use the first project
+          const initialProjectId = projectId || userProjects[0].id.toString();
+          const updates = await getProgressUpdates(Number(initialProjectId));
           setProgressUpdates(updates);
-          setSelectedProject(projects[0].id);
+          setSelectedProject(initialProjectId);
+          
+          // Load images for all progress updates
+          await loadImagesForProgress(updates);
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -53,14 +59,37 @@ const LeaderViewProgress = () => {
     };
 
     loadData();
-  }, [user?.id, t]);
+  }, [user?.id, t, projectId]);
+  
+  const loadImagesForProgress = async (updates: ProgressUpdate[]) => {
+    const newImageUrls: { [key: string]: string } = {};
+    
+    for (const update of updates) {
+      if (update.image_ids && update.image_ids.length > 0) {
+        for (const imageId of update.image_ids) {
+          const key = `${update.id}-${imageId}`;
+          try {
+            const imageUrl = await displayImage(imageId, 'progress');
+            newImageUrls[key] = imageUrl;
+          } catch (error) {
+            console.error(`Error loading image ${imageId}:`, error);
+          }
+        }
+      }
+    }
+    
+    setImageUrls(newImageUrls);
+  };
   
   const handleProjectChange = async (projectId: string) => {
     try {
       setLoading(true);
-      const updates = await getProgressUpdatesByProjectId(projectId);
+      const updates = await getProgressUpdates(Number(projectId));
       setProgressUpdates(updates);
       setSelectedProject(projectId);
+      
+      // Load images for the new project's progress updates
+      await loadImagesForProgress(updates);
     } catch (error) {
       console.error('Error loading project updates:', error);
       toast.error(t("common.error"));
@@ -71,14 +100,6 @@ const LeaderViewProgress = () => {
   
   const handleViewProgress = (progress: ProgressUpdate) => {
     setSelectedProgress(progress);
-    
-    if (progress.vehicleId) {
-      const vehicle = getVehicleById(progress.vehicleId);
-      setSelectedVehicle(vehicle);
-    } else {
-      setSelectedVehicle(null);
-    }
-    
     setShowDialog(true);
   };
   
@@ -87,20 +108,19 @@ const LeaderViewProgress = () => {
   };
   
   const calculateCompletionPercentage = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    if (!project || project.totalWork === 0) return 0;
-    return Math.min(100, Math.round((project.completedWork / project.totalWork) * 100));
+    const project = projects.find(p => p.id === Number(projectId));
+    if (!project || project.total_work === 0) return 0;
+    return Math.min(100, Math.round((project.completed_work / project.total_work) * 100));
   };
   
-  const getGradientByIndex = (index: number) => {
-    const gradients = [
-      'bg-gradient-to-r from-primary to-secondary',
-      'bg-gradient-to-r from-secondary to-primary',
-      'bg-gradient-to-r from-amber-500 to-amber-300',
-      'bg-gradient-to-r from-amber-300 to-amber-500'
-    ];
-    return gradients[index];
-  };
+  // Cleanup blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      Object.values(imageUrls).forEach(url => {
+        revokeBlobUrl(url);
+      });
+    };
+  }, [imageUrls]);
   
   if (loading) {
     return (
@@ -130,8 +150,8 @@ const LeaderViewProgress = () => {
             </SelectTrigger>
             <SelectContent key="project-content">
               {projects.map((project) => (
-                <SelectItem key={`project-${project.id}`} value={project.id}>
-                  {project.name}
+                <SelectItem key={`project-${project.id}`} value={project.id.toString()}>
+                  {project.title}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -142,7 +162,7 @@ const LeaderViewProgress = () => {
           <Card className="mb-8" key="project-overview">
             <CardHeader>
               <CardTitle>
-                {projects.find(p => p.id === selectedProject)?.name}
+                {projects.find(p => p.id === Number(selectedProject))?.title}
               </CardTitle>
               <CardDescription>
                 {t('app.progress.overview')}
@@ -167,13 +187,13 @@ const LeaderViewProgress = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">{t('app.progress.totalWork')}:</p>
                     <p className="text-lg font-medium">
-                      {projects.find(p => p.id === selectedProject)?.totalWork} {t('app.progress.meters')}
+                      {projects.find(p => p.id === Number(selectedProject))?.total_work} {t('app.progress.meters')}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">{t('app.progress.completedWork')}:</p>
                     <p className="text-lg font-medium">
-                      {projects.find(p => p.id === selectedProject)?.completedWork} {t('app.progress.meters')}
+                      {projects.find(p => p.id === Number(selectedProject))?.completed_work} {t('app.progress.meters')}
                     </p>
                   </div>
                 </div>
@@ -199,27 +219,42 @@ const LeaderViewProgress = () => {
                 {progressUpdates.map((update) => (
                   <Card key={`progress-${update.id}`} className="overflow-hidden">
                     <CardHeader>
-                      <CardTitle>{formatDate(update.date)}</CardTitle>
+                      <CardTitle>{formatDate(update.created_at)}</CardTitle>
                       <CardDescription>
-                        {t("app.viewProgress.completedWork")}: {update.completedWork}m
+                        {t("app.viewProgress.completedWork")}: {update.completed_work}m
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {update.photos && update.photos.length > 0 && (
+                      {update.image_ids && update.image_ids.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                          {update.photos.map((photo, index) => (
-                            <div key={`photo-${update.id}-${index}`} className="relative">
-                              <img
-                                src={photo.dataUrl}
-                                alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
-                                className="w-full h-48 object-cover rounded-lg"
-                              />
-                            </div>
-                          ))}
+                          {update.image_ids.map((imageId, index) => {
+                            const imageKey = `${update.id}-${imageId}`;
+                            const imageUrl = imageUrls[imageKey];
+                            
+                            return imageUrl ? (
+                              <div key={`photo-${update.id}-${imageId}`} className="relative">
+                                <img
+                                  src={imageUrl}
+                                  alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
+                                  className="w-full h-48 object-cover rounded-lg"
+                                  onError={(e) => {
+                                    console.error(`Failed to load image ${imageId}`);
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div key={`photo-${update.id}-${imageId}`} className="relative">
+                                <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
-                      {update.remarks && (
-                        <p className="mt-4 text-muted-foreground">{update.remarks}</p>
+                      {update.description && (
+                        <p className="mt-4 text-muted-foreground">{update.description}</p>
                       )}
                     </CardContent>
                   </Card>
@@ -236,7 +271,7 @@ const LeaderViewProgress = () => {
           <DialogHeader>
             <DialogTitle>{t('app.progress.details.title')}</DialogTitle>
             <DialogDescription>
-              {t('app.progress.details.updateFrom')} {selectedProgress && formatDate(selectedProgress.date)}
+              {t('app.progress.details.updateFrom')} {selectedProgress && formatDate(selectedProgress.created_at)}
             </DialogDescription>
           </DialogHeader>
           
@@ -246,133 +281,50 @@ const LeaderViewProgress = () => {
                 <div>
                   <h3 className="font-semibold mb-2">{t('app.progress.details.workInfo')}</h3>
                   <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">{t('app.progress.details.date')}:</span> {formatDate(selectedProgress.date)}</p>
-                    <p><span className="font-medium">{t('app.progress.details.workCompleted')}:</span> {selectedProgress.completedWork} {t('app.progress.meters')}</p>
-                    <p><span className="font-medium">{t('app.progress.details.timeTaken')}:</span> {selectedProgress.timeTaken} {t('app.progress.hours')}</p>
-                    <p>
-                      <span className="font-medium">{t('app.progress.details.workRate')}:</span> {(selectedProgress.completedWork / selectedProgress.timeTaken).toFixed(2)} {t('app.progress.metersPerHour')}
-                    </p>
+                    <p><span className="font-medium">{t('app.progress.details.date')}:</span> {formatDate(selectedProgress.created_at)}</p>
+                    <p><span className="font-medium">{t('app.progress.details.workCompleted')}:</span> {selectedProgress.completed_work} {t('app.progress.meters')}</p>
+                    <p><span className="font-medium">{t('app.progress.details.completion')}:</span> {selectedProgress.completion_percentage}%</p>
                   </div>
                 </div>
-                
-                {selectedVehicle && (
-                  <div>
-                    <h3 className="font-semibold mb-2">{t('app.progress.details.vehicleInfo')}</h3>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="font-medium">{t('app.progress.details.vehicle')}:</span> {selectedVehicle.model}</p>
-                      <p><span className="font-medium">{t('app.progress.details.registration')}:</span> {selectedVehicle.registrationNumber}</p>
-                    </div>
-                  </div>
-                )}
               </div>
               
-              {selectedProgress.notes && (
+              {selectedProgress.description && (
                 <div>
                   <h3 className="font-semibold mb-2">{t('app.progress.details.notes')}</h3>
                   <div className="bg-muted/40 p-3 rounded-md">
-                    <p className="text-sm">{selectedProgress.notes}</p>
+                    <p className="text-sm">{selectedProgress.description}</p>
                   </div>
                 </div>
               )}
               
-              <Tabs defaultValue="photos" className="w-full">
-                <TabsList className="grid grid-cols-2 mb-4">
-                  <TabsTrigger value="photos">{t('app.progress.details.photos')}</TabsTrigger>
-                  <TabsTrigger value="documents">{t('app.progress.details.documents')}</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="photos">
-                  <div>
-                    <h3 className="font-semibold mb-2">{t('app.progress.details.progressPhotos')}</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {selectedProgress.photos.map((photo, index) => (
+              {selectedProgress.image_ids && selectedProgress.image_ids.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">{t('app.progress.details.photos')}</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {selectedProgress.image_ids.map((imageId, index) => {
+                      const imageKey = `${selectedProgress.id}-${imageId}`;
+                      const imageUrl = imageUrls[imageKey];
+                      
+                      return imageUrl ? (
                         <div key={index} className="relative">
                           <img
-                            src={photo.dataUrl}
+                            src={imageUrl}
                             alt={`${t('app.progress.photo')} ${index + 1}`}
                             className="w-full object-cover rounded-md"
+                            onError={(e) => {
+                              console.error(`Failed to load image ${imageId}`);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
                           />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
-                            {new Date(photo.timestamp).toLocaleTimeString()}
+                        </div>
+                      ) : (
+                        <div key={index} className="relative">
+                          <div className="w-full h-32 bg-muted rounded-md flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {selectedProgress.photos.length > 0 && selectedProgress.photos[0].location && (
-                    <div className="mt-4">
-                      <h3 className="font-semibold mb-2">{t('app.progress.details.location')}</h3>
-                      <MapView location={selectedProgress.photos[0].location} />
-                    </div>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="documents">
-                  <div>
-                    <h3 className="font-semibold mb-2">{t('app.progress.details.attachedDocuments')}</h3>
-                    {selectedProgress.documents && selectedProgress.documents.length > 0 ? (
-                      <div className="space-y-3">
-                        {selectedProgress.documents.map((doc) => (
-                          <div key={doc.id} className="flex items-center p-3 bg-muted/30 rounded-lg border border-border">
-                            <File className="h-8 w-8 mr-3 text-primary" />
-                            <div>
-                              <p className="font-medium">{doc.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(doc.timestamp).toLocaleString()}
-                              </p>
-                            </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="ml-auto"
-                              onClick={() => window.open(doc.dataUrl, '_blank')}
-                            >
-                              {t('app.progress.details.view')}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-4 text-center text-muted-foreground bg-muted/20 rounded-md">
-                        {t('app.progress.details.noDocuments')}
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-              
-              {selectedProgress.startMeterReading && selectedProgress.endMeterReading && (
-                <div>
-                  <h3 className="font-semibold mb-2">{t('app.progress.details.meterReadings')}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium mb-1">{t('app.progress.details.startReading')}:</p>
-                      <div className="relative">
-                        <img
-                          src={selectedProgress.startMeterReading.dataUrl}
-                          alt={t('app.progress.details.startMeterReading')}
-                          className="w-full max-h-48 object-contain rounded-md"
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
-                          {new Date(selectedProgress.startMeterReading.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium mb-1">{t('app.progress.details.endReading')}:</p>
-                      <div className="relative">
-                        <img
-                          src={selectedProgress.endMeterReading.dataUrl}
-                          alt={t('app.progress.details.endMeterReading')}
-                          className="w-full max-h-48 object-contain rounded-md"
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
-                          {new Date(selectedProgress.endMeterReading.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

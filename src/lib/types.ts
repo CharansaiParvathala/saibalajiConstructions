@@ -1,4 +1,8 @@
-export type UserRole = "leader" | "checker" | "owner" | "admin";
+export enum UserRole {
+  ADMIN = 'admin',
+  LEADER = 'leader',
+  USER = 'user'
+}
 
 export interface User {
   id: string;
@@ -6,21 +10,21 @@ export interface User {
   email: string;
   password: string;
   role: UserRole;
+  mobileNumber?: string;
 }
 
 export interface Project {
-  id: string;
-  name: string;
-  leaderId: string;
-  createdAt: string;
-  workers: number;
-  totalWork: number; // in meters
-  completedWork: number; // in meters
-  status?: string;
-  startDate?: string;
-  endDate?: string;
-  location?: string;
-  completionPercentage?: number;
+  id: number;
+  title: string;
+  description: string;
+  leader_id: number;
+  status: 'active' | 'completed' | 'on_hold' | 'scheduled' | 'cancelled';
+  start_date?: string;
+  end_date?: string;
+  total_work: number;
+  completed_work: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Vehicle {
@@ -66,17 +70,15 @@ export interface DocumentFile {
 
 export interface ProgressUpdate {
   id: string;
-  projectId: string;
-  date: string;
-  completedWork: number; // in meters
-  timeTaken: number; // in hours
-  photos: PhotoWithMetadata[];
-  notes?: string;
-  vehicleId?: string;
-  startMeterReading?: PhotoWithMetadata;
-  endMeterReading?: PhotoWithMetadata;
-  documents?: DocumentFile[];
-  location?: Location; // Location property is now properly defined
+  project_id: number;
+  user_id: number;
+  completed_work: number;
+  description: string;
+  completion_percentage: number;
+  status: 'pending' | 'completed';
+  created_at: string;
+  image_proof?: string; // base64 encoded image
+  image_ids?: number[]; // array of image IDs for database retrieval
 }
 
 export interface PaymentRequest {
@@ -84,11 +86,20 @@ export interface PaymentRequest {
   projectId: string;
   progressUpdateId?: string;
   date: string;
-  purposes: PaymentPurpose[];
+  totalAmount: number; // Calculated total from expenses
   status: "pending" | "approved" | "rejected" | "scheduled" | "paid";
   checkerNotes?: string;
   scheduledDate?: string;
-  totalAmount: number;
+  expenses: PaymentExpense[]; // Array of individual expenses
+  image_ids?: number[]; // array of image IDs for database retrieval
+}
+
+export interface PaymentExpense {
+  id?: number;
+  type: "food" | "fuel" | "labour" | "vehicle" | "water" | "other";
+  amount: number;
+  remarks?: string;
+  images?: number[]; // Array of image indices for this expense
 }
 
 export interface PaymentPurpose {

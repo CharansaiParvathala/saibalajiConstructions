@@ -4,6 +4,7 @@ export interface User {
   email: string;
   password: string;
   role: 'admin' | 'leader' | 'checker' | 'owner';
+  mobileNumber?: string;
   createdAt: string;
 }
 

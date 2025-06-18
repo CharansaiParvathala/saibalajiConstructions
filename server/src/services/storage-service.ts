@@ -7,12 +7,60 @@ export class StorageService {
   private constructor() {
     // Initialize storage with default values
     this.storage = {
-      projects: [],
+      projects: [
+        {
+          id: '1',
+          name: 'Sample Project 1',
+          description: 'A sample project for testing',
+          leaderId: '1',
+          totalWork: 100,
+          completedWork: 0,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        }
+      ],
       paymentRequests: [],
       progressUpdates: [],
       vehicles: [],
       drivers: [],
-      users: [],
+      users: [
+        {
+          id: '1',
+          name: 'Admin User',
+          email: 'admin@example.com',
+          password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'admin123'
+          role: 'admin',
+          mobileNumber: '1234567890',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: '2',
+          name: 'Leader User',
+          email: 'leader@example.com',
+          password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'leader123'
+          role: 'leader',
+          mobileNumber: '2345678901',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: '3',
+          name: 'Owner User',
+          email: 'owner@example.com',
+          password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'owner123'
+          role: 'owner',
+          mobileNumber: '3456789012',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: '4',
+          name: 'Checker User',
+          email: 'checker@example.com',
+          password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'checker123'
+          role: 'checker',
+          mobileNumber: '4567890123',
+          createdAt: new Date().toISOString()
+        }
+      ],
       backupLinks: [],
       finalSubmissions: []
     };

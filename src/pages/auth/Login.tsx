@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,10 @@ import { AuthLogo } from '@/components/auth/AuthLogo';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -21,6 +22,16 @@ export default function Login() {
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+
+  // Handle navigation after successful login
+  useEffect(() => {
+    if (user && user.role) {
+      const rolePath = `/${user.role.toLowerCase()}`;
+      console.log('Navigating to:', rolePath);
+      navigate(rolePath, { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -30,35 +41,32 @@ export default function Login() {
     }));
   };
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    
-    if (!formData.email || !formData.password) {
-      toast.error(t('app.auth.allFieldsRequired'));
-      return;
-    }
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
+    setError('');
     
     try {
-      await login(formData.email, formData.password);
-      // Navigation is handled in the auth context
-    } catch (error) {
-      console.error('Login error:', error);
+      const user = await login(formData.email, formData.password);
+      // Navigation will be handled by the useEffect hook
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err instanceof Error ? err.message : 'Login failed');
       toast.error(t('app.auth.loginError'));
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
+      console.log('Attempting Google login');
       await login("admin@saibalaji.com", "password123");
-      // Navigation is handled in the auth context
+      // Navigation is handled by the useEffect
     } catch (error) {
       console.error('Google login error:', error);
-      toast.error(t('app.auth.loginError'));
+      toast.error(error instanceof Error ? error.message : t('app.auth.loginError'));
     } finally {
       setLoading(false);
     }
@@ -130,10 +138,7 @@ export default function Login() {
                   {t('app.auth.rememberMe')}
                 </label>
               </div>
-              <Link 
-                to="/forgot-password" 
-                className="text-sm text-primary hover:text-primary/80 transition-colors"
-              >
+              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80">
                 {t('app.auth.forgotPassword')}
               </Link>
             </div>
@@ -192,10 +197,10 @@ export default function Login() {
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <div className="text-sm text-center text-muted-foreground">
+            <div className="text-center text-sm text-muted-foreground">
               {t('app.auth.noAccount')}{' '}
               <Link to="/signup" className="text-primary hover:text-primary/80 font-medium transition-colors">
-                {t('app.auth.signUp')}
+                {t('app.auth.signup')}
               </Link>
             </div>
           </CardFooter>

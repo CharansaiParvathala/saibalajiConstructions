@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { UserRole } from "./types"
@@ -51,3 +50,59 @@ export function getChartColorByIndex(index: number): string {
   
   return colors[index % colors.length];
 }
+
+export const getStatusBadge = (status: string) => {
+  const statusConfig = {
+    pending: { label: 'Pending', variant: 'warning' },
+    approved: { label: 'Approved', variant: 'success' },
+    rejected: { label: 'Rejected', variant: 'destructive' }
+  };
+
+  return statusConfig[status as keyof typeof statusConfig] || { label: status, variant: 'default' };
+};
+
+export const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+export const getInitials = (name: string) => {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+};
+
+export const getRandomColor = (index: number) => {
+  const colors = [
+    '#FF6B6B', // Red
+    '#4ECDC4', // Teal
+    '#45B7D1', // Blue
+    '#96CEB4', // Green
+    '#FFEEAD', // Yellow
+    '#D4A5A5', // Pink
+    '#9B59B6', // Purple
+    '#3498DB', // Light Blue
+    '#E67E22', // Orange
+    '#1ABC9C', // Turquoise
+  ];
+
+  return colors[index % colors.length];
+};
+
+export const getRoleLabel = (role: UserRole) => {
+  const roleLabels: Record<UserRole, string> = {
+    [UserRole.ADMIN]: 'Admin',
+    [UserRole.LEADER]: 'Leader',
+    [UserRole.USER]: 'User',
+  };
+
+  return roleLabels[role] || role;
+};

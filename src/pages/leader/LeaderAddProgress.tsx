@@ -8,22 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { useNavigate } from 'react-router-dom';
-import { getProjectsByLeaderId, getAllVehicles, addProgressUpdate, updateProject } from '@/lib/storage';
 import { Project, Vehicle, PhotoWithMetadata, ProgressUpdate } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
-import { Clock, Percent, Upload, CheckCircle } from 'lucide-react';
+import { Clock, Percent, Upload, CheckCircle, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from '@/context/language-context';
+import { getProjects, addProgress, updateProject } from '@/lib/api/api-client';
 
 // Simple component to display progress photos
-const ImageDisplay = ({ images, onRemove }) => {
+const ImageDisplay = ({ images, onRemove }: { images: PhotoWithMetadata[], onRemove: (index: number) => void }) => {
   if (!images || images.length === 0) return null;
   
   return (
     <div className="mt-4">
       <h3 className="font-medium mb-2">Progress Photos:</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {images.map((image, index) => (
+        {images.map((image: PhotoWithMetadata, index: number) => (
           <div key={index} className="relative">
             <img
               src={image.dataUrl}
@@ -52,440 +52,280 @@ const LeaderAddProgress = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('');
-  const [selectedVehicle, setSelectedVehicle] = useState<string>('');
-  const [useVehicle, setUseVehicle] = useState<boolean>(false);
-  const [photos, setPhotos] = useState<PhotoWithMetadata[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [completedWork, setCompletedWork] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [completedWork, setCompletedWork] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeTaken, setTimeTaken] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  const [startMeterReading, setStartMeterReading] = useState<PhotoWithMetadata | null>(null);
-  const [endMeterReading, setEndMeterReading] = useState<PhotoWithMetadata | null>(null);
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
   
   useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const allProjects = await getProjects();
+        console.log('Fetched projects:', allProjects);
     if (user) {
-      const userProjects = getProjectsByLeaderId(user.id);
+          // Filter projects where the user is the leader
+          const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
+          console.log('User projects:', userProjects);
       setProjects(userProjects);
-      
-      const allVehicles = getAllVehicles();
-      setVehicles(allVehicles);
+        }
+      } catch (error) {
+        console.error('Error fetching projects:', error);
+        toast.error('Failed to fetch projects');
     }
+    };
+
+    fetchProjects();
   }, [user]);
   
   useEffect(() => {
     // Calculate progress percentage
     if (selectedProject && completedWork) {
-      const project = projects.find(p => p.id === selectedProject);
-      if (project && project.totalWork > 0) {
-        const currentCompleted = project.completedWork + parseFloat(completedWork);
-        const percentage = Math.min(100, Math.round((currentCompleted / project.totalWork) * 100));
+      const project = projects.find(p => p.id.toString() === selectedProject.id.toString());
+      console.log('Selected project:', project);
+      
+      if (project) {
+        const currentCompleted = Number(project.completed_work || 0) + Number(completedWork);
+        const totalWork = Number(project.total_work || 0);
+        const percentage = totalWork > 0 ? Math.min(100, Math.round((currentCompleted / totalWork) * 100)) : 0;
+        
+        console.log('Progress calculation:', {
+          currentCompleted,
+          totalWork,
+          percentage,
+          completedWork: Number(completedWork),
+          projectCompletedWork: Number(project.completed_work || 0)
+        });
+        
         setProgressPercentage(percentage);
       }
     }
   }, [selectedProject, completedWork, projects]);
   
-  const handleRemovePhoto = (index: number) => {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setSelectedImages(prev => [...prev, ...files]);
+      
+      // Create preview URLs
+      const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+      setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+    }
   };
-  
-  const handleSubmit = async () => {
-    if (!selectedProject) {
-      toast.error("Please select a project");
-      return;
-    }
-    
-    if (!completedWork || isNaN(parseFloat(completedWork)) || parseFloat(completedWork) <= 0) {
-      toast.error("Please enter valid completed work distance");
-      return;
-    }
-    
-    if (!timeTaken || isNaN(parseFloat(timeTaken)) || parseFloat(timeTaken) <= 0) {
-      toast.error("Please enter valid time taken");
-      return;
-    }
-    
-    if (useVehicle) {
-      if (!selectedVehicle) {
-        toast.error("Please select a vehicle");
-        return;
-      }
-      
-      if (!startMeterReading) {
-        toast.error("Please upload start meter reading image");
-        return;
-      }
-      
-      if (!endMeterReading) {
-        toast.error("Please upload end meter reading image");
-        return;
-      }
-    }
-    
-    const selectedProjectObj = projects.find(p => p.id === selectedProject);
-    if (!selectedProjectObj) {
-      toast.error("Selected project not found");
-      return;
-    }
 
-    // Validate that the new completed work doesn't exceed total work
-    const newCompletedWork = selectedProjectObj.completedWork + parseFloat(completedWork);
-    if (newCompletedWork > selectedProjectObj.totalWork) {
-      toast.error(`Total completed work (${newCompletedWork}m) cannot exceed total work (${selectedProjectObj.totalWork}m)`);
-      return;
-    }
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviewUrls(prev => {
+      const newUrls = [...prev];
+      URL.revokeObjectURL(newUrls[index]);
+      return newUrls.filter((_, i) => i !== index);
+    });
+  };
+
+  const calculateProgress = (project: Project) => {
+    const total = Number(project.total_work);
+    const completed = Number(project.completed_work);
+    const percentage = total > 0 ? (completed / total) * 100 : 0;
+    console.log('Progress calculation:', {
+      completed,
+      total,
+      percentage,
+      projectId: project.id
+    });
+    return percentage;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProject) return;
     
     setIsSubmitting(true);
-    
     try {
-      // Create progress update
-      const progressData: Omit<ProgressUpdate, 'id'> = {
-        projectId: selectedProject,
-        date: new Date().toISOString(),
-        completedWork: parseFloat(completedWork),
-        timeTaken: parseFloat(timeTaken),
-        photos: photos || [],
-        notes: notes || undefined,
-        vehicleId: useVehicle ? selectedVehicle : undefined,
-        startMeterReading: useVehicle ? startMeterReading : undefined,
-        endMeterReading: useVehicle ? endMeterReading : undefined,
-        documents: [] // Empty documents array
-      };
+      const completedWorkNum = Number(completedWork);
+      const totalWork = Number(selectedProject.total_work);
+      const currentCompleted = Number(selectedProject.completed_work);
+      const newCompletedWork = currentCompleted + completedWorkNum;
 
-      console.log('Submitting progress data:', progressData);
-      
-      // Add progress update (now async)
-      await addProgressUpdate(progressData);
-      
-      // Update project completion
-      const updatedProject = {
-        ...selectedProjectObj,
-        completedWork: newCompletedWork
-      };
-      
-      console.log('Updating project:', updatedProject);
-      updateProject(updatedProject);
-      
-      toast.success("Progress update submitted successfully");
-      
-      // Check if project is completed
-      if (newCompletedWork >= selectedProjectObj.totalWork) {
-        toast.success("Project completed! You can now upload final project images.");
-        // Navigate to final submission page
-        setTimeout(() => {
-          navigate('/leader/final-submission');
-        }, 1500);
-      } else {
-        // Redirect to dashboard after short delay
-        setTimeout(() => {
-          navigate('/leader');
-        }, 1500);
+      console.log('Submitting progress:', {
+        currentCompleted,
+        totalWork,
+        completedWorkNum,
+        newCompletedWork,
+        percentage: (newCompletedWork / totalWork) * 100,
+        projectId: selectedProject.id
+      });
+
+      // Validate total work
+      if (newCompletedWork > totalWork) {
+        toast.error('Total completed work cannot exceed total work');
+        return;
       }
+
+      await addProgress({
+        projectId: selectedProject.id,
+        completedWork: completedWorkNum,
+        description,
+        images: selectedImages
+      });
+
+      // Reset form
+      setCompletedWork('');
+      setDescription('');
+      setSelectedImages([]);
+      setImagePreviewUrls([]);
+      setSelectedProject(null);
       
+      // Refresh projects list
+      const updatedProjects = await getProjects();
+      setProjects(updatedProjects.filter(project => project.leader_id === Number(user?.id)));
+
+      toast.success('Progress added successfully');
+      
+      // Navigate to leader dashboard after short delay
+      setTimeout(() => {
+        navigate('/leader');
+      }, 1500);
     } catch (error) {
-      console.error("Error submitting progress:", error);
-      toast.error("Failed to submit progress. Please try again.");
+      console.error('Error adding progress:', error);
+      toast.error('Failed to add progress');
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  const today = new Date().toLocaleDateString();
-  
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.progress.add.title')}</h1>
       <p className="text-muted-foreground mb-8">
         {t('app.progress.add.description')}
       </p>
       
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+      <div className="w-full max-w-6xl mx-auto">
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle>{t('app.progress.add.form.project.label')}</CardTitle>
+            <CardTitle>{t('app.progress.add.formTitle')}</CardTitle>
             <CardDescription>
-              {t('app.progress.add.description')}
+              {t('app.progress.add.formDescription')}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="project">{t('app.progress.add.form.project.label')}</Label>
-              <Select
-                value={selectedProject}
-                onValueChange={setSelectedProject}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('app.progress.add.form.project.placeholder')} />
-                </SelectTrigger>
-                <SelectContent>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6 w-full">
+              <div className="space-y-4 w-full">
+                <div className="w-full">
+                  <Label htmlFor="project">{t('app.progress.add.selectProject')}</Label>
+                  <Select
+                    value={selectedProject?.id?.toString() || ''}
+                    onValueChange={(value) => {
+                      const project = projects.find(p => p.id.toString() === value);
+              setSelectedProject(project || null);
+            }}
+          >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t('app.progress.add.selectProjectPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
                   {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
+                        <SelectItem key={project.id} value={project.id.toString()}>
+                {project.title}
+                        </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {selectedProject && (
-              <div className="space-y-2 p-3 bg-muted/30 rounded-md">
-                <div className="flex justify-between text-sm">
-                  <span>Current Progress:</span>
-                  <span>{progressPercentage}%</span>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Progress 
-                  value={progressPercentage} 
-                  className="h-2" 
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>
-                    {projects.find(p => p.id === selectedProject)?.completedWork || 0} meters completed
-                  </span>
-                  <span>
-                    {projects.find(p => p.id === selectedProject)?.totalWork || 0} meters total
-                  </span>
-                </div>
-              </div>
-            )}
             
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <Percent size={16} className="mr-2 text-muted-foreground" />
-                <Label htmlFor="completedWork">{t('app.progress.add.form.completedWork.label')}</Label>
-              </div>
+                <div className="w-full">
+                  <Label htmlFor="completedWork">{t('app.progress.add.completedWork')}</Label>
               <Input
                 id="completedWork"
                 type="number"
-                placeholder={t('app.progress.add.form.completedWork.placeholder')}
-                min="0.1"
-                step="0.01"
                 value={completedWork}
                 onChange={(e) => setCompletedWork(e.target.value)}
+                    placeholder={t('app.progress.add.completedWorkPlaceholder')}
+                    required
+                    className="w-full"
+                  />
+                </div>
+                
+                <div className="w-full">
+                  <Label htmlFor="description">{t('app.progress.add.description')}</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder={t('app.progress.add.descriptionPlaceholder')}
+            required
+                    className="w-full"
               />
             </div>
             
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <Clock size={16} className="mr-2 text-muted-foreground" />
-                <Label htmlFor="timeTaken">{t('app.progress.add.form.timeTaken.label')}</Label>
-              </div>
+                <div className="w-full">
+                  <Label htmlFor="timeTaken">{t('app.progress.add.timeTaken')}</Label>
               <Input
                 id="timeTaken"
-                type="number"
-                placeholder={t('app.progress.add.form.timeTaken.placeholder')}
-                min="0.1"
-                step="0.1"
                 value={timeTaken}
                 onChange={(e) => setTimeTaken(e.target.value)}
+                    placeholder={t('app.progress.add.timeTakenPlaceholder')}
+                    required
+                    className="w-full"
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="notes">{t('app.progress.add.form.notes.label')}</Label>
+                <div className="w-full">
+                  <Label htmlFor="notes">{t('app.progress.add.notes')}</Label>
               <Textarea
                 id="notes"
-                placeholder={t('app.progress.add.form.notes.placeholder')}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                    placeholder={t('app.progress.add.notesPlaceholder')}
+                    className="w-full"
               />
             </div>
             
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="useVehicle"
-                checked={useVehicle}
-                onChange={() => setUseVehicle(!useVehicle)}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="useVehicle">This work used a vehicle</Label>
-            </div>
-            
-            {useVehicle && (
-              <div className="space-y-2">
-                <Label htmlFor="vehicle">Select Vehicle</Label>
-                <Select
-                  value={selectedVehicle}
-                  onValueChange={setSelectedVehicle}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a vehicle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {vehicle.model} ({vehicle.registrationNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('app.progress.add.form.photos.label')}</CardTitle>
-            <CardDescription>
-              {t('app.progress.add.form.photos.description')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs defaultValue="photos" className="w-full">
-              <TabsList className="grid w-full grid-cols-1 mb-4">
-                <TabsTrigger value="photos">{t('app.progress.add.form.photos.label')}</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="photos" className="space-y-4">
-                <div className="flex justify-center mb-6">
-                  <Button onClick={() => {
-                    // Use standard file input for now
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e) => {
-                      const file = (e.target as HTMLInputElement).files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          const photoData: PhotoWithMetadata = {
-                            dataUrl: reader.result as string,
-                            timestamp: new Date().toISOString(),
-                            location: { latitude: 0, longitude: 0 }
-                          };
-                          setPhotos(prev => [...prev, photoData]);
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    };
-                    input.click();
-                  }}>
-                    {t('app.progress.add.form.photos.upload')}
-                  </Button>
-                </div>
-                
-                <ImageDisplay images={photos} onRemove={handleRemovePhoto} />
-              </TabsContent>
-            </Tabs>
-            
-            {useVehicle && (
-              <div className="mt-6 space-y-4">
-                <div>
-                  <h3 className="font-medium mb-2">Vehicle Start Meter Reading:</h3>
-                  {!startMeterReading ? (
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const photoData: PhotoWithMetadata = {
-                                dataUrl: reader.result as string,
-                                timestamp: new Date().toISOString(),
-                                location: { latitude: 0, longitude: 0 }
-                              };
-                              setStartMeterReading(photoData);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        };
-                        input.click();
-                      }}
-                      className="w-full h-32 flex flex-col items-center justify-center"
-                    >
-                      <span>Upload Start Meter Reading</span>
-                    </Button>
-                  ) : (
-                    <div className="relative">
+                <div className="w-full">
+                  <Label>{t('app.progress.add.photos')}</Label>
+                  <div className="mt-2">
+                    <Input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                      className="w-full mb-4"
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+              {imagePreviewUrls.map((url, index) => (
+                <div key={index} className="relative">
                       <img
-                        src={startMeterReading.dataUrl}
-                        alt="Start meter reading"
-                        className="w-full max-h-48 object-contain"
+                    src={url}
+                    alt={`Preview ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg"
                       />
                       <button
-                        onClick={() => setStartMeterReading(null)}
-                        className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         type="button"
-                      >
-                        ×
+                    onClick={() => removeImage(index)}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"
+                  >
+                            <X size={16} />
                       </button>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
-                        {new Date(startMeterReading.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  )}
                 </div>
-                
-                <div>
-                  <h3 className="font-medium mb-2">Vehicle End Meter Reading:</h3>
-                  {!endMeterReading ? (
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              const photoData: PhotoWithMetadata = {
-                                dataUrl: reader.result as string,
-                                timestamp: new Date().toISOString(),
-                                location: { latitude: 0, longitude: 0 }
-                              };
-                              setEndMeterReading(photoData);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        };
-                        input.click();
-                      }}
-                      className="w-full h-32 flex flex-col items-center justify-center"
-                    >
-                      <span>Upload End Meter Reading</span>
-                    </Button>
-                  ) : (
-                    <div className="relative">
-                      <img
-                        src={endMeterReading.dataUrl}
-                        alt="End meter reading"
-                        className="w-full max-h-48 object-contain"
-                      />
-                      <button
-                        onClick={() => setEndMeterReading(null)}
-                        className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                        type="button"
-                      >
-                        ×
-                      </button>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
-                        {new Date(endMeterReading.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  )}
-                </div>
+              ))}
               </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={handleSubmit} 
-              className="w-full"
+                  </div>
+                </div>
+        </div>
+
+              <Button 
+          type="submit"
+                className="w-full"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Submitting..." : t('app.progress.add.submit')}
-            </Button>
-          </CardFooter>
+                {isSubmitting ? t('app.progress.add.submitting') : t('app.progress.add.submit')}
+              </Button>
+      </form>
+          </CardContent>
         </Card>
       </div>
     </div>

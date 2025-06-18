@@ -16,10 +16,18 @@ initToastSwipeSupport();
 // Create a client
 const queryClient = new QueryClient();
 
+// Router future flags configuration
+const routerConfig = {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true
+  }
+};
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <Router>
+      <Router {...routerConfig}>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <LanguageProvider>
           <AuthProvider>

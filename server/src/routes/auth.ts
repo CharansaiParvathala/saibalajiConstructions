@@ -31,7 +31,13 @@ export function createAuthRouter(db: Database) {
   // Login
   router.post('/login', async (req, res) => {
     try {
+      console.log('Login request received:', req.body);
       const { email, password } = req.body;
+
+      if (!email || !password) {
+        console.error('Missing email or password');
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
 
       // In a real app, you would validate credentials properly
       // For this demo, determine role from the email
@@ -50,6 +56,7 @@ export function createAuthRouter(db: Database) {
       let user = users.find(u => u.email === email);
 
       if (!user) {
+        console.log('Creating new user for:', email);
         user = await db.createUser({
           name: email.split('@')[0],
           email,
@@ -64,6 +71,7 @@ export function createAuthRouter(db: Database) {
       // Don't send password back to client
       const { password: _, ...userWithoutPassword } = user;
       
+      console.log('Login successful for user:', userWithoutPassword);
       res.json({
         token,
         user: userWithoutPassword
@@ -100,11 +108,23 @@ export function createAuthRouter(db: Database) {
         email,
         password,
         role: role || 'leader',
+        mobileNumber: phone
       });
+
+      // Generate token
+      const token = Buffer.from(JSON.stringify({ id: user.id, role: user.role })).toString('base64');
 
       res.status(201).json({
         success: true,
-        message: 'Registration successful'
+        message: 'Registration successful',
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          mobileNumber: user.mobileNumber
+        }
       });
     } catch (error) {
       res.status(500).json({

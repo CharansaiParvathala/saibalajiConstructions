@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { getProjectsByLeaderId, getProgressUpdatesByProjectId, savePaymentRequest } from '@/lib/storage';
+import { getProjects, getProgressUpdates, createPaymentRequest } from '@/lib/api/api-client';
 
 const LeaderRequestPayment = () => {
   const { t } = useLanguage();
@@ -34,13 +34,16 @@ const LeaderRequestPayment = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const projects = getProjectsByLeaderId(user?.id || '');
-        setProjects(projects);
+        const allProjects = await getProjects();
+        if (user) {
+          const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
+          setProjects(userProjects);
 
-        if (projects.length > 0) {
-          const updates = await getProgressUpdatesByProjectId(projects[0].id);
+          if (userProjects.length > 0) {
+            const updates = await getProgressUpdates(Number(userProjects[0].id));
           setProgressUpdates(updates);
-          setSelectedProject(projects[0].id);
+            setSelectedProject(userProjects[0].id.toString());
+          }
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -77,24 +80,43 @@ const LeaderRequestPayment = () => {
     setLoading(true);
 
     try {
-      // Prepare payment request data
-      const paymentRequest = {
-        id: `payment-${Date.now()}`, // Add unique ID
-        projectId: selectedProject,
-        progressUpdateId: selectedProgress,
-        date: new Date().toISOString(),
-        purposes: purposes.map(p => ({
-          ...p,
-          amount: Number(p.amount) // Ensure amount is a number
-        })),
-        totalAmount: Number(totalAmount), // Ensure total is a number
-        status: 'pending' as const, // Fix the status type
-        leaderId: user?.id || '', // Add leader ID
-        createdAt: new Date().toISOString()
-      };
+      // Convert base64 images to File objects for all purposes
+      const allImages: File[] = [];
+      const expenses = purposes.map((purpose, index) => {
+        // Convert images for this purpose
+        const purposeImages = purpose.images.map((image, imgIndex) => {
+          const imageIndex = allImages.length;
+          // Convert base64 to File
+          const dataUrl = image.dataUrl;
+          const arr = dataUrl.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const file = new File([u8arr], `receipt-${Date.now()}-${imgIndex}.jpg`, { type: mime });
+          allImages.push(file);
+          return imageIndex;
+        });
 
-      // Save payment request
-      await savePaymentRequest(paymentRequest);
+        return {
+          type: purpose.type as 'food' | 'fuel' | 'labour' | 'vehicle' | 'water' | 'other',
+          amount: Number(purpose.amount),
+          remarks: purpose.remarks || '',
+          images: purposeImages
+        };
+      });
+
+      // Create single payment request with all expenses
+      await createPaymentRequest({
+        projectId: Number(selectedProject),
+        description: `Payment request for ${purposes.length} expense(s)`,
+        expenses: expenses,
+        images: allImages,
+        progressId: Number(selectedProgress)
+      });
       
       // Clear form
       setPurposes([{ type: "food", amount: 0, images: [], remarks: "" }]);
@@ -203,17 +225,30 @@ const LeaderRequestPayment = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
   };
 
   const handleProjectChange = async (projectId: string) => {
+    console.log("Project selected:", projectId);
     try {
       setLoading(true);
-      const project = projects.find(p => p.id === projectId);
+      const project = projects.find(p => p.id.toString() === projectId);
       if (project) {
-        setSelectedProject(project.id);
-        const updates = await getProgressUpdatesByProjectId(projectId);
+        setSelectedProject(projectId);
+        const updates = await getProgressUpdates(Number(projectId));
+        console.log("Fetched progress updates:", updates);
         setProgressUpdates(updates);
+        // Reset selected progress when project changes
+        setSelectedProgress(''); 
       }
     } catch (error) {
       console.error('Error loading project updates:', error);
@@ -244,8 +279,8 @@ const LeaderRequestPayment = () => {
               </SelectTrigger>
               <SelectContent>
                 {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id} textValue={project.name}>
-                    {project.name}
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    {project.title}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -258,20 +293,23 @@ const LeaderRequestPayment = () => {
               <Select 
                 value={selectedProgress} 
                 onValueChange={setSelectedProgress}
+                key={`progress-select-${selectedProject}`}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={t("app.paymentRequest.selectProgressUpdate")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {progressUpdates.map((update) => (
+                  {progressUpdates.map((update) => {
+                    const displayText = `${formatDate(update.created_at)} - ${update.completed_work}m completed (${update.status})`;
+                    return (
                     <SelectItem 
                       key={update.id} 
-                      value={update.id}
-                      textValue={`${formatDate(update.date)} - ${update.completedWork}m completed`}
+                        value={update.id.toString()}
                     >
-                      {formatDate(update.date)} - {update.completedWork}m completed
+                        {displayText}
                     </SelectItem>
-                  ))}
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

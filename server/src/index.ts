@@ -6,50 +6,25 @@ import { createAuthRouter } from './routes/auth';
 import { StorageService } from './services/storage-service';
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 // Initialize database and storage
 const db: Database = new MemoryDatabase();
 const storage = StorageService.getInstance();
 
-// Middleware
+// CORS configuration
 app.use(cors({
+  origin: 'http://localhost:8080',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['x-user-id']
 }));
+
+// Parse JSON bodies
 app.use(express.json());
 
 // Auth routes
 app.use('/api/auth', createAuthRouter(db));
-
-// Authentication middleware
-const authenticate = async (req: Request, res: Response, next: Function) => {
-  const userId = req.headers['x-user-id'];
-  if (!userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  try {
-    const user = await db.getUserById(userId as string);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid user' });
-    }
-
-    // Add user to request for use in routes
-    (req as any).user = user;
-    next();
-  } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(500).json({ error: 'Authentication failed' });
-  }
-};
-
-// Protected routes
-app.use('/api/projects', authenticate);
-app.use('/api/payment-requests', authenticate);
-app.use('/api/progress-updates', authenticate);
-app.use('/api/vehicles', authenticate);
-app.use('/api/drivers', authenticate);
-app.use('/api/users', authenticate);
 
 // Projects routes
 app.get('/api/projects', async (req: Request, res: Response) => {
@@ -83,15 +58,72 @@ app.get('/api/projects/:id', async (req: Request, res: Response) => {
 app.post('/api/projects', async (req: Request, res: Response) => {
   try {
     console.log('POST /api/projects - Creating new project:', req.body);
-    const project = await db.saveProject(req.body);
-    console.log('Created project:', project);
-    res.status(201).json(project);
+    
+    // Validate required fields
+    const { name, leaderId, workers, totalWork, completedWork, description } = req.body;
+    if (!name || !leaderId || !workers || !totalWork || !description) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Create project object
+    const project = {
+      name,
+      leaderId,
+      workers: parseInt(workers),
+      totalWork: parseFloat(totalWork),
+      completedWork: completedWork || 0,
+      status: 'pending' as const,
+      description
+    };
+
+    const savedProject = await db.saveProject(project);
+    console.log('Created project:', savedProject);
+    res.status(201).json(savedProject);
   } catch (error) {
     console.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }
 });
 
+// Authentication middleware
+const authenticate = async (req: Request, res: Response, next: Function) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded;
+    try {
+      decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+    } catch (error) {
+      console.error('Token decoding error:', error);
+      return res.status(401).json({ error: 'Invalid token format' });
+    }
+    
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    const user = await db.getUserById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid user' });
+    }
+
+    // Add user to request for use in routes
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+
+// Protected routes middleware
+app.use('/api/projects', authenticate);
+
+// Projects routes
 app.put('/api/projects/:id', async (req: Request, res: Response) => {
   try {
     console.log('PUT /api/projects/:id - Updating project:', req.params.id, req.body);
@@ -197,6 +229,12 @@ app.post('/api/users', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to create user' });
   }
+});
+
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: Function) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start server
