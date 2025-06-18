@@ -116,7 +116,7 @@ const LeaderRequestPayment = () => {
         expenses: expenses,
         images: allImages,
         progressId: Number(selectedProgress)
-      });
+        });
       
       // Clear form
       setPurposes([{ type: "food", amount: 0, images: [], remarks: "" }]);

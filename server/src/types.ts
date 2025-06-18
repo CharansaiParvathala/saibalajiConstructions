@@ -65,9 +65,13 @@ export interface FinalSubmission {
   id: string;
   projectId: string;
   leaderId: string;
-  description: string;
-  images: string[];
-  status: 'pending' | 'approved' | 'rejected';
+  submissionDate: string;
+  timerDuration: number;
+  timerStartedAt?: string;
+  timerEndedAt?: string;
+  status: 'in_progress' | 'completed' | 'expired';
+  notes?: string;
+  images?: string[];
   createdAt: string;
   updatedAt: string;
 } 

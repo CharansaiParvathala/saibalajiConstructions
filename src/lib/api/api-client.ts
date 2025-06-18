@@ -355,7 +355,75 @@ export const createBackupLink = async (link: Omit<BackupLink, 'id'>): Promise<Ba
 
 // Final Submissions API
 export const getFinalSubmissions = async (projectId: number): Promise<FinalSubmission[]> => {
-  return apiRequest<FinalSubmission[]>(`/final-submissions?projectId=${projectId}`);
+  return apiRequest<FinalSubmission[]>(`/final-submissions/${projectId}`);
+};
+
+export const startFinalSubmissionTimer = async (projectId: number, leaderId: number) => {
+  return apiRequest<{
+    submissionId: number;
+    timerStartedAt: string;
+    timerDuration: number;
+    message: string;
+  }>(`/final-submissions/${projectId}/start-timer`, {
+    method: 'POST',
+    data: { leaderId }
+  });
+};
+
+export const uploadFinalSubmissionImages = async (submissionId: number, images: string[]) => {
+  return apiRequest<{
+    message: string;
+    uploadedCount: number;
+    timeRemaining: number;
+  }>(`/final-submissions/${submissionId}/upload-images`, {
+    method: 'POST',
+    data: { images }
+  });
+};
+
+export const completeFinalSubmission = async (submissionId: number, notes?: string) => {
+  return apiRequest<{
+    message: string;
+    submissionId: number;
+    imageCount: number;
+  }>(`/final-submissions/${submissionId}/complete`, {
+    method: 'POST',
+    data: { notes }
+  });
+};
+
+export const getFinalSubmissionDetails = async (submissionId: number) => {
+  return apiRequest<FinalSubmission & { images: any[] }>(`/final-submissions/${submissionId}/details`);
+};
+
+export const getTimerStatus = async (submissionId: number) => {
+  return apiRequest<{
+    status: string;
+    timeRemaining: number;
+    timerStartedAt?: string;
+    timerDuration?: number;
+    message?: string;
+  }>(`/final-submissions/${submissionId}/timer-status`);
+};
+
+// Debug function to test image upload
+export const debugImageUpload = async (images: string[]) => {
+  return apiRequest<{
+    success: boolean;
+    totalImages: number;
+    results: Array<{
+      index: number;
+      type: string;
+      length: number;
+      preview: string;
+      isValidBase64: boolean;
+      bufferSize: number;
+      error: string | null;
+    }>;
+  }>(`/final-submissions/debug/upload-test`, {
+    method: 'POST',
+    data: { images }
+  });
 };
 
 // Progress Updates

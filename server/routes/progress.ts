@@ -102,7 +102,7 @@ router.post('/', authenticateToken, upload.array('images', MAX_IMAGES), async (r
       for (const file of files) {
         const fileData = fs.readFileSync(file.path);
         fileDataArray.push({ data: fileData, filename: file.filename });
-        
+      
         // Clean up the temporary file immediately after reading
         fs.unlinkSync(file.path);
       }

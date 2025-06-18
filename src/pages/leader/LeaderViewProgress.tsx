@@ -233,16 +233,16 @@ const LeaderViewProgress = () => {
                             
                             return imageUrl ? (
                               <div key={`photo-${update.id}-${imageId}`} className="relative">
-                                <img
+                              <img
                                   src={imageUrl}
-                                  alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
-                                  className="w-full h-48 object-cover rounded-lg"
+                                alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
+                                className="w-full h-48 object-cover rounded-lg"
                                   onError={(e) => {
                                     console.error(`Failed to load image ${imageId}`);
                                     (e.target as HTMLImageElement).style.display = 'none';
                                   }}
-                                />
-                              </div>
+                              />
+                            </div>
                             ) : (
                               <div key={`photo-${update.id}-${imageId}`} className="relative">
                                 <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
@@ -306,17 +306,17 @@ const LeaderViewProgress = () => {
                       const imageUrl = imageUrls[imageKey];
                       
                       return imageUrl ? (
-                        <div key={index} className="relative">
-                          <img
+                      <div key={index} className="relative">
+                        <img
                             src={imageUrl}
-                            alt={`${t('app.progress.photo')} ${index + 1}`}
-                            className="w-full object-cover rounded-md"
+                          alt={`${t('app.progress.photo')} ${index + 1}`}
+                          className="w-full object-cover rounded-md"
                             onError={(e) => {
                               console.error(`Failed to load image ${imageId}`);
                               (e.target as HTMLImageElement).style.display = 'none';
                             }}
-                          />
-                        </div>
+                        />
+                      </div>
                       ) : (
                         <div key={index} className="relative">
                           <div className="w-full h-32 bg-muted rounded-md flex items-center justify-center">

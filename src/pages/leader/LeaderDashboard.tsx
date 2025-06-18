@@ -24,15 +24,15 @@ const LeaderDashboard = () => {
           // Get all projects and filter by leader ID
           const allProjects = await getProjects();
           console.log('All projects:', allProjects);
-          const userProjects = allProjects.filter(project => project.leader_id === user.id);
+          const userProjects = allProjects.filter(project => project.leader_id === parseInt(user.id));
           console.log('User projects:', userProjects);
       setProjects(userProjects);
       
           // Get all payment requests and filter by leader's projects
-          const allPayments = await getPaymentRequests();
+          const allPayments = await getPaymentRequests(parseInt(user.id));
       const leaderPayments = allPayments
         .filter(payment => 
-              userProjects.some(project => project.id === payment.project_id)
+              userProjects.some(project => project.id === parseInt(payment.projectId))
         )
         .slice(0, 3);
       setRecentPayments(leaderPayments);
@@ -67,8 +67,6 @@ const LeaderDashboard = () => {
     return Math.min(100, Math.round((project.completed_work / project.total_work) * 100));
   };
 
-  const hasCompletedProjects = projects.some(project => project.completed_work >= project.total_work);
-
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -78,15 +76,13 @@ const LeaderDashboard = () => {
             {t('app.dashboard.description')}
           </p>
         </div>
-        {hasCompletedProjects && (
-          <Button 
-            onClick={() => navigate('/leader/final-submission')}
-            className="flex items-center gap-2"
-          >
-            <CheckCircle className="h-4 w-4" />
-            Final Project Submission
-          </Button>
-        )}
+        <Button 
+          onClick={() => navigate('/leader/final-submission')}
+          className="flex items-center gap-2"
+        >
+          <CheckCircle className="h-4 w-4" />
+          Final Project Submission
+        </Button>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
@@ -158,7 +154,7 @@ const LeaderDashboard = () => {
                         <div>
                           <h3 className="font-semibold">{project.title}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {t('app.common.createdOn')} {format(new Date(project.created_at), 'MMM d, yyyy')}
+                            {t('app.common.createdOn')} {project.created_at ? format(new Date(project.created_at), 'MMM d, yyyy') : 'N/A'}
                           </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => navigate(`/leader/projects/${project.id}`)}>
@@ -193,9 +189,9 @@ const LeaderDashboard = () => {
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-semibold">₹ {Number(payment.total_amount || 0).toFixed(2)}</h3>
+                          <h3 className="font-semibold">₹ {Number(payment.totalAmount || 0).toFixed(2)}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {t('app.common.requestedOn')} {payment.created_at ? format(new Date(payment.created_at), 'MMM d, yyyy') : 'N/A'}
+                            {t('app.common.requestedOn')} {payment.date ? format(new Date(payment.date), 'MMM d, yyyy') : 'N/A'}
                           </p>
                         </div>
                         {getStatusBadge(payment.status)}

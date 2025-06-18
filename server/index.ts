@@ -6,6 +6,7 @@ import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import paymentRequestRoutes from './routes/payment-requests';
 import progressRoutes from './routes/progress';
+import finalSubmissionRoutes from './routes/final-submissions';
 
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -74,6 +75,7 @@ app.get('/api/auth/current-user', authenticate, async (req: express.Request, res
 app.use('/api/projects', projectRoutes);
 app.use('/api/payment-requests', paymentRequestRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/final-submissions', finalSubmissionRoutes);
 
 // Projects routes
 app.post('/api/projects', authenticate, async (req: express.Request, res: express.Response) => {

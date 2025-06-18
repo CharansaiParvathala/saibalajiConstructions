@@ -6,12 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
 import { Upload, Clock, CheckCircle } from 'lucide-react';
-import { getProjectsByLeaderId, saveFinalSubmission } from '@/lib/storage';
-import { Project, PhotoWithMetadata, FinalSubmission } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
-
-const TIMER_STORAGE_KEY = 'final_submission_timer';
+import { 
+  getProjects, 
+  startFinalSubmissionTimer, 
+  uploadFinalSubmissionImages, 
+  completeFinalSubmission,
+  getTimerStatus,
+  getFinalSubmissions,
+  getFinalSubmissionDetails
+} from '@/lib/api/api-client';
+import { Project, PhotoWithMetadata } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 
 const LeaderFinalSubmission = () => {
   const { user } = useAuth();
@@ -19,90 +26,145 @@ const LeaderFinalSubmission = () => {
   const navigate = useNavigate();
   
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<number | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [completionPhotos, setCompletionPhotos] = useState<PhotoWithMetadata[]>([]);
   const [timerActive, setTimerActive] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(600); // 10 minutes in seconds
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
-
-  // Clear any existing timer when component mounts
-  useEffect(() => {
-    localStorage.removeItem(TIMER_STORAGE_KEY);
-    return () => {
-      localStorage.removeItem(TIMER_STORAGE_KEY);
-    };
-  }, []);
+  const [currentSubmissionId, setCurrentSubmissionId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [timerResumed, setTimerResumed] = useState<boolean>(false);
 
   useEffect(() => {
     if (user) {
-      const userProjects = getProjectsByLeaderId(user.id);
-      // Filter only completed projects
-      const completedProjects = userProjects.filter(project => 
-        project.completedWork >= project.totalWork
+      loadProjects();
+    }
+  }, [user]);
+
+  const loadProjects = async () => {
+    try {
+      setIsLoading(true);
+      const allProjects = await getProjects();
+      // Filter only completed projects (100% work done)
+      const completedProjects = allProjects.filter(project => 
+        project.completed_work >= project.total_work
       );
       setProjects(completedProjects);
       
       if (completedProjects.length > 0) {
         setSelectedProject(completedProjects[0].id);
+        
+        // Check for active timers across all completed projects
+        await checkForActiveTimersAcrossProjects(completedProjects);
       }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      toast.error('Failed to load projects');
+    } finally {
+      setIsLoading(false);
     }
-  }, [user]);
+  };
+
+  const checkForActiveTimersAcrossProjects = async (projects: Project[]) => {
+    try {
+      for (const project of projects) {
+        const submissions = await getFinalSubmissions(project.id);
+        const activeSubmission = submissions.find(sub => sub.status === 'in_progress');
+        
+        if (activeSubmission) {
+          console.log('Found active timer for project:', project.id);
+          setSelectedProject(project.id);
+          setCurrentSubmissionId(activeSubmission.id);
+          setTimerActive(true);
+          
+          // Get current timer status
+          const timerStatus = await getTimerStatus(activeSubmission.id);
+          setTimeRemaining(timerStatus.timeRemaining);
+          
+          // Load existing images for this submission
+          await loadSubmissionImages(activeSubmission.id);
+          
+          setTimerResumed(true);
+          toast.success(`Resumed active timer for project: ${project.title}`);
+          break; // Found an active timer, no need to check other projects
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for active timers:', error);
+    }
+  };
+
+  const loadSubmissionImages = async (submissionId: number) => {
+    try {
+      const submissionDetails = await getFinalSubmissionDetails(submissionId);
+      if (submissionDetails.images && submissionDetails.images.length > 0) {
+        const photos: PhotoWithMetadata[] = submissionDetails.images.map((img: any) => ({
+          dataUrl: img.dataUrl,
+          timestamp: img.timestamp,
+          location: { latitude: 0, longitude: 0 }
+        }));
+        setCompletionPhotos(photos);
+      }
+    } catch (error) {
+      console.error('Error loading submission images:', error);
+    }
+  };
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (timerActive && timeRemaining > 0) {
-      // Store timer state in localStorage
-      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
-        startedAt: timerStartedAt,
-        remaining: timeRemaining
-      }));
-
-      timer = setInterval(() => {
-        setTimeRemaining(prev => {
-          const newTime = prev - 1;
-          if (newTime <= 0) {
+    
+    if (timerActive && currentSubmissionId) {
+      timer = setInterval(async () => {
+        try {
+          // Check timer status from server
+          const timerStatus = await getTimerStatus(currentSubmissionId);
+          
+          if (timerStatus.status === 'expired') {
             setTimerActive(false);
-            localStorage.removeItem(TIMER_STORAGE_KEY);
+            setTimeRemaining(0);
             toast.error("Time's up! You can no longer upload completion photos.");
-            return 0;
+            return;
           }
-          return newTime;
-        });
+          
+          setTimeRemaining(timerStatus.timeRemaining);
+          
+          if (timerStatus.timeRemaining <= 0) {
+            setTimerActive(false);
+            toast.error("Time's up! You can no longer upload completion photos.");
+          }
+        } catch (error) {
+          console.error('Error checking timer status:', error);
+        }
       }, 1000);
-    } else if (timeRemaining === 0) {
-      setTimerActive(false);
-      localStorage.removeItem(TIMER_STORAGE_KEY);
-      toast.error("Time's up! You can no longer upload completion photos.");
     }
 
-    // Cleanup function
     return () => {
       clearInterval(timer);
-      if (timerActive) {
-        // Save timer state when component unmounts
-        localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
-          startedAt: timerStartedAt,
-          remaining: timeRemaining
-        }));
-      }
     };
-  }, [timerActive, timeRemaining, timerStartedAt]);
+  }, [timerActive, currentSubmissionId]);
 
-  const startCompletionTimer = () => {
-    // Clear any existing timer
-    localStorage.removeItem(TIMER_STORAGE_KEY);
-    
-    const startTime = new Date().toISOString();
-    setTimerStartedAt(startTime);
-    setTimerActive(true);
-    setTimeRemaining(600); // Reset to 10 minutes
-    toast.success("You have 10 minutes to upload completion photos");
+  const startCompletionTimer = async () => {
+    if (!selectedProject || !user) {
+      toast.error("Please select a project");
+      return;
+    }
+
+    try {
+      const response = await startFinalSubmissionTimer(selectedProject, parseInt(user.id));
+      setCurrentSubmissionId(response.submissionId);
+      setTimerActive(true);
+      setTimeRemaining(response.timerDuration);
+      setTimerResumed(false);
+      toast.success("You have 10 minutes to upload completion photos");
+    } catch (error) {
+      console.error('Error starting timer:', error);
+      toast.error('Failed to start timer. Please try again.');
+    }
   };
 
-  const handleCompletionPhotoUpload = () => {
-    if (!timerActive) {
+  const handleCompletionPhotoUpload = async () => {
+    if (!timerActive || !currentSubmissionId) {
       toast.error("Please start the timer first to upload completion photos");
       return;
     }
@@ -111,33 +173,50 @@ const LeaderFinalSubmission = () => {
     input.type = 'file';
     input.accept = 'image/*';
     input.multiple = true;
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (files) {
-        Array.from(files).forEach(file => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const photoData: PhotoWithMetadata = {
-              dataUrl: reader.result as string,
-              timestamp: new Date().toISOString(),
-              location: { latitude: 0, longitude: 0 }
-            };
-            setCompletionPhotos(prev => [...prev, photoData]);
-          };
-          reader.readAsDataURL(file);
-        });
+        try {
+          const imagePromises = Array.from(files).map(file => {
+            return new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                // Convert to base64 without data URL prefix
+                const base64 = result.split(',')[1];
+                resolve(base64);
+              };
+              reader.readAsDataURL(file);
+            });
+          });
+
+          const base64Images = await Promise.all(imagePromises);
+          
+          // Upload images to server
+          const uploadResponse = await uploadFinalSubmissionImages(currentSubmissionId, base64Images);
+          
+          // Reload images from server to get the updated list
+          await loadSubmissionImages(currentSubmissionId);
+
+          toast.success(`Uploaded ${uploadResponse.uploadedCount} images successfully`);
+        } catch (error) {
+          console.error('Error uploading images:', error);
+          toast.error('Failed to upload images. Please try again.');
+        }
       }
     };
     input.click();
   };
 
-  const handleRemoveCompletionPhoto = (index: number) => {
+  const handleRemoveCompletionPhoto = async (index: number) => {
+    // For now, we'll just remove from local state
+    // In a full implementation, you'd want to add a delete endpoint to remove from server
     setCompletionPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
-    if (!selectedProject || !user) {
-      toast.error("Please select a project");
+    if (!currentSubmissionId || !user) {
+      toast.error("Please start the timer first");
       return;
     }
 
@@ -154,19 +233,7 @@ const LeaderFinalSubmission = () => {
     setIsSubmitting(true);
 
     try {
-      const finalSubmission: Omit<FinalSubmission, 'id' | 'createdAt' | 'updatedAt'> = {
-        projectId: selectedProject,
-        leaderId: user.id,
-        submissionDate: new Date().toISOString(),
-        timerDuration: 600,
-        timerStartedAt: timerStartedAt || new Date().toISOString(),
-        timerEndedAt: new Date().toISOString(),
-        status: 'completed',
-        images: completionPhotos,
-        notes: notes || undefined
-      };
-
-      saveFinalSubmission(finalSubmission);
+      await completeFinalSubmission(currentSubmissionId, notes);
       toast.success("Final project submission completed successfully");
       
       // Redirect to dashboard after short delay
@@ -180,6 +247,18 @@ const LeaderFinalSubmission = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-4">
+        <Card>
+          <CardContent className="flex items-center justify-center p-8">
+            <div>Loading projects...</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (projects.length === 0) {
     return (
@@ -218,13 +297,27 @@ const LeaderFinalSubmission = () => {
           </CardHeader>
           <CardContent>
             <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              value={selectedProject || ''}
+              onChange={async (e) => {
+                const newProjectId = parseInt(e.target.value);
+                setSelectedProject(newProjectId);
+                
+                // Reset timer state when changing projects
+                setTimerActive(false);
+                setTimeRemaining(600);
+                setCurrentSubmissionId(null);
+                setCompletionPhotos([]);
+                setTimerResumed(false);
+                
+                // Check if there's an active timer for the new project
+                await checkForActiveTimersAcrossProjects(projects.filter(p => p.id === newProjectId));
+              }}
               className="w-full p-2 border rounded"
+              disabled={timerActive}
             >
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
-                  {project.name}
+                  {project.title} - {project.completed_work}/{project.total_work} completed
                 </option>
               ))}
             </select>
@@ -256,9 +349,15 @@ const LeaderFinalSubmission = () => {
               <CardTitle className="flex items-center">
                 <Clock className="mr-2 h-5 w-5" />
                 Time Remaining: {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                {timerResumed && (
+                  <Badge className="ml-2 bg-blue-100 text-blue-800 border-blue-300">
+                    Resumed
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Upload final project images before time runs out
+                {timerResumed && " - Timer resumed from previous session"}
               </CardDescription>
             </CardHeader>
             <CardContent>
