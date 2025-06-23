@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { 
-  getAllProjects, 
-  getAllPaymentRequests, 
-  getAllUsers, 
-  getAllVehicles,
-  getLeaderProgressStats
-} from '@/lib/storage';
-import { Project, PaymentRequest, User, Vehicle, LeaderProgressStats } from '@/lib/types';
+  getAdminDashboardData,
+  getAdminUsers,
+  getAdminProjects,
+  getAdminVehicles,
+  getAdminDrivers,
+  getAdminPaymentRequests,
+  getAdminPaymentSummary,
+  getAdminStatistics
+} from '@/lib/api/api-client';
+import { Project, PaymentRequest, User, Vehicle, Driver } from '@/lib/types';
 import { 
   BarChart, 
   Bar, 
@@ -26,11 +29,18 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { Clock, Percent, MapPin } from 'lucide-react';
+import { Clock, Percent, MapPin, Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 // Custom colors for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+// Utility function to safely convert database values to numbers
+const safeNumber = (value: any): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -40,76 +50,99 @@ const AdminDashboard = () => {
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [leaderStats, setLeaderStats] = useState<LeaderProgressStats[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [statistics, setStatistics] = useState<any>(null);
+  const [paymentSummary, setPaymentSummary] = useState<any>(null);
+  
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Stats
   const [totalCompletedWork, setTotalCompletedWork] = useState(0);
   const [totalPlannedWork, setTotalPlannedWork] = useState(0);
   const [totalPaid, setTotalPaid] = useState(0);
-  const [pendingPayments, setPendingPayments] = useState(0);
+  const [pendingPaymentCount, setPendingPaymentCount] = useState(0);
   
   // Charts data
   const [userRolesData, setUserRolesData] = useState<any[]>([]);
   const [projectStatusData, setProjectStatusData] = useState<any[]>([]);
   
   useEffect(() => {
-    // Fetch all data
-    const allProjects = getAllProjects();
-    setProjects(allProjects);
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch all data from MySQL database
+        const [dashboardData, paymentSummaryData] = await Promise.all([
+          getAdminDashboardData(),
+          getAdminPaymentSummary()
+        ]);
+        
+        setUsers(dashboardData.users);
+        setProjects(dashboardData.projects);
+        setVehicles(dashboardData.vehicles);
+        setDrivers(dashboardData.drivers);
+        setPayments(dashboardData.paymentRequests);
+        setStatistics(dashboardData.statistics);
+        setPaymentSummary(paymentSummaryData);
     
-    const allPayments = getAllPaymentRequests();
-    setPayments(allPayments);
-    
-    const allUsers = getAllUsers();
-    setUsers(allUsers);
-    
-    const allVehicles = getAllVehicles();
-    setVehicles(allVehicles);
-    
-    // Get leader progress stats
-    const stats = getLeaderProgressStats();
-    setLeaderStats(stats);
-    
-    // Calculate stats
-    const completed = allProjects.reduce((sum, project) => sum + project.completedWork, 0);
-    const planned = allProjects.reduce((sum, project) => sum + project.totalWork, 0);
+        // Calculate stats from real data
+        const completed = dashboardData.projects.reduce((sum, project) => sum + safeNumber(project.completed_work), 0);
+        const planned = dashboardData.projects.reduce((sum, project) => sum + safeNumber(project.total_work), 0);
     setTotalCompletedWork(completed);
     setTotalPlannedWork(planned);
     
-    const paidAmount = allPayments
-      .filter(payment => payment.status === 'paid')
-      .reduce((sum, payment) => sum + payment.totalAmount, 0);
-    setTotalPaid(paidAmount);
+        // Use payment summary data for accurate calculations
+        setTotalPaid(paymentSummaryData.summary.paidAmount);
+        // Calculate payment status counts for admin
+        const pendingPaymentCount = payments.filter(p => ['pending', 'approved', 'scheduled'].includes(p.status)).length;
+        
+        // Debug logging
+        console.log('Admin Dashboard Data:', {
+          projects: dashboardData.projects.length,
+          completedWork: completed,
+          plannedWork: planned,
+          paymentRequests: dashboardData.paymentRequests.length,
+          paymentSummary: paymentSummaryData.summary,
+          paymentStatuses: paymentSummaryData.paymentRequests.map((p: any) => ({ 
+            id: p.id, 
+            status: p.status, 
+            amount: p.total_amount 
+          })),
+          rawPaymentAmounts: paymentSummaryData.paymentRequests.map((p: any) => ({
+            id: p.id,
+            status: p.status,
+            rawAmount: p.total_amount,
+            parsedAmount: parseFloat(p.total_amount) || 0
+          }))
+        });
     
-    const pendingCount = allPayments
-      .filter(payment => payment.status === 'pending' || payment.status === 'approved')
-      .length;
-    setPendingPayments(pendingCount);
-    
-    // Prepare chart data
-    const roleCount = allUsers.reduce((acc: Record<string, number>, user) => {
+        // Prepare chart data from real data
+        const roleCount = dashboardData.users.reduce((acc: Record<string, number>, user) => {
       acc[user.role] = (acc[user.role] || 0) + 1;
       return acc;
     }, {});
     
     setUserRolesData(
       Object.entries(roleCount).map(([role, count]) => ({
-        name: role,
+            name: role.charAt(0).toUpperCase() + role.slice(1),
         value: count
       }))
     );
     
-    // Project status data
-    const completedProjects = allProjects.filter(p => 
-      p.completedWork >= p.totalWork
+        // Project status data from real data
+        const completedProjects = dashboardData.projects.filter(p => 
+          safeNumber(p.completed_work) >= safeNumber(p.total_work) && safeNumber(p.total_work) > 0
     ).length;
     
-    const inProgressProjects = allProjects.filter(p => 
-      p.completedWork > 0 && p.completedWork < p.totalWork
+        const inProgressProjects = dashboardData.projects.filter(p => 
+          safeNumber(p.completed_work) > 0 && safeNumber(p.completed_work) < safeNumber(p.total_work)
     ).length;
     
-    const notStartedProjects = allProjects.filter(p => 
-      p.completedWork === 0
+        const notStartedProjects = dashboardData.projects.filter(p => 
+          safeNumber(p.completed_work) === 0
     ).length;
     
     setProjectStatusData([
@@ -118,11 +151,24 @@ const AdminDashboard = () => {
       { name: "Not Started", value: notStartedProjects }
     ].filter(item => item.value > 0));
     
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, []);
   
   const getOverallProgress = () => {
-    if (totalPlannedWork === 0) return 0;
-    return Math.round((totalCompletedWork / totalPlannedWork) * 100);
+    const completed = safeNumber(totalCompletedWork);
+    const planned = safeNumber(totalPlannedWork);
+    
+    if (planned === 0) return 0;
+    const progress = (completed / planned) * 100;
+    return Math.round(progress) || 0;
   };
 
   const formatTime = (hours: number) => {
@@ -130,6 +176,34 @@ const AdminDashboard = () => {
     const minutes = Math.round((hours - wholeHours) * 60);
     return `${wholeHours}h ${minutes}m`;
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span>Loading dashboard data...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-red-500 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="container mx-auto p-4">
@@ -185,24 +259,31 @@ const AdminDashboard = () => {
             <CardTitle className="text-lg">{t("app.admin.dashboard.payments")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">₹ {totalPaid.toLocaleString()}</p>
+            <p className="text-3xl font-bold">₹ {paymentSummary?.summary?.totalAmount?.toLocaleString() || 0}</p>
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-sm text-muted-foreground">{pendingPayments} {t("app.admin.dashboard.pending")}</span>
+              <span className="text-sm text-muted-foreground">
+                {pendingPaymentCount} {t("app.admin.dashboard.pending")} • 
+                ₹ {Math.round(totalPaid).toLocaleString()} paid
+              </span>
             </div>
           </CardContent>
         </Card>
       </div>
       
       {/* Team Leaders Progress Section */}
+      {statistics?.userActivity && (
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-4">{t("app.admin.dashboard.teamLeadersProgress")}</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {leaderStats.map(leader => (
-            <Card key={leader.leaderId}>
+            {statistics.userActivity
+              .filter((leader: any) => leader.user_role === 'leader')
+              .slice(0, 6)
+              .map((leader: any) => (
+                <Card key={leader.user_id}>
               <CardHeader>
-                <CardTitle>{leader.leaderName}</CardTitle>
+                    <CardTitle>{leader.user_name}</CardTitle>
                 <CardDescription>
-                  {leader.projectCount} {t("app.admin.dashboard.projects")}
+                      {leader.projects_worked_on} {t("app.admin.dashboard.projects")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -212,9 +293,9 @@ const AdminDashboard = () => {
                       <Percent size={16} className="mr-2 text-muted-foreground" />
                       <span>{t("app.admin.dashboard.progress")}:</span>
                     </div>
-                    <span className="font-medium">{leader.completionPercentage}%</span>
+                        <span className="font-medium">{safeNumber(leader.avg_completion_percentage)}%</span>
                   </div>
-                  <Progress value={leader.completionPercentage} />
+                      <Progress value={safeNumber(leader.avg_completion_percentage)} />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
@@ -222,25 +303,24 @@ const AdminDashboard = () => {
                     <MapPin size={16} className="text-muted-foreground" />
                     <div>
                       <div className="text-xs text-muted-foreground">{t("app.admin.dashboard.distance")}</div>
-                      <div className="font-medium">{leader.totalDistance} {t("app.admin.dashboard.meters")}</div>
+                          <div className="font-medium">{safeNumber(leader.total_work_completed)} {t("app.admin.dashboard.meters")}</div>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Clock size={16} className="text-muted-foreground" />
                     <div>
-                      <div className="text-xs text-muted-foreground">{t("app.admin.dashboard.timeSpent")}</div>
-                      <div className="font-medium">{formatTime(leader.totalTime)}</div>
+                          <div className="text-xs text-muted-foreground">{t("app.admin.dashboard.updates")}</div>
+                          <div className="font-medium">{safeNumber(leader.progress_updates_count)}</div>
                     </div>
                   </div>
                 </div>
                 
-                {leader.recentUpdates.length > 0 && (
+                    {leader.last_activity && (
                   <div>
-                    <div className="text-sm font-medium mb-1">{t("app.admin.dashboard.latestUpdate")}</div>
+                        <div className="text-sm font-medium mb-1">{t("app.admin.dashboard.lastActivity")}</div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(leader.recentUpdates[0].date).toLocaleDateString()}:
-                      {' '}{leader.recentUpdates[0].completedWork} {t("app.admin.dashboard.meters")} {t("app.admin.dashboard.in")} {leader.recentUpdates[0].timeTaken} {t("app.admin.dashboard.hours")}
+                          {new Date(leader.last_activity).toLocaleDateString()}
                     </div>
                   </div>
                 )}
@@ -259,6 +339,7 @@ const AdminDashboard = () => {
           ))}
         </div>
       </div>
+      )}
       
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

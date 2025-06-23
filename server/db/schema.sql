@@ -49,8 +49,20 @@ CREATE TABLE IF NOT EXISTS progress (
     image_proof TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    vehicle_id INT NULL,
+    driver_id INT NULL,
+    is_external_driver BOOLEAN DEFAULT FALSE,
+    external_driver_name VARCHAR(255),
+    external_driver_license_type VARCHAR(100),
+    external_driver_mobile_number VARCHAR(20),
+    start_meter_image_id INT NULL,
+    end_meter_image_id INT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id),
+    FOREIGN KEY (driver_id) REFERENCES drivers(id),
+    FOREIGN KEY (start_meter_image_id) REFERENCES progress_images(id),
+    FOREIGN KEY (end_meter_image_id) REFERENCES progress_images(id)
 );
 
 CREATE TABLE IF NOT EXISTS payment_requests (
@@ -110,6 +122,26 @@ CREATE TABLE IF NOT EXISTS progress_images (
     FOREIGN KEY (progress_id) REFERENCES progress(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS vehicles (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    type ENUM('truck', 'tractor', 'jcb', 'other') NOT NULL,
+    model VARCHAR(255) NOT NULL,
+    rc_image LONGBLOB,
+    rc_expiry DATE,
+    pollution_cert_image LONGBLOB,
+    pollution_cert_expiry DATE,
+    fitness_cert_image LONGBLOB,
+    fitness_cert_expiry DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    rc_image_mime VARCHAR(64),
+    rc_image_name VARCHAR(255),
+    pollution_cert_image_mime VARCHAR(64),
+    pollution_cert_image_name VARCHAR(255),
+    fitness_cert_image_mime VARCHAR(64),
+    fitness_cert_image_name VARCHAR(255)
+);
+
 -- Add image_url column to progress table if it doesn't exist
 ALTER TABLE progress
 ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);
@@ -132,4 +164,29 @@ MODIFY COLUMN status ENUM('pending', 'completed') DEFAULT 'pending';
 
 -- Add index for better performance
 CREATE INDEX IF NOT EXISTS idx_progress_project ON progress(project_id);
-CREATE INDEX IF NOT EXISTS idx_progress_images_progress ON progress_images(progress_id);                                                                                                                                                                                 
+CREATE INDEX IF NOT EXISTS idx_progress_images_progress ON progress_images(progress_id);
+
+-- Create drivers table
+CREATE TABLE IF NOT EXISTS drivers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    mobile_number VARCHAR(15) NOT NULL,
+    license_number VARCHAR(50) NOT NULL,
+    license_type VARCHAR(50) NOT NULL,
+    license_image LONGBLOB,
+    license_image_name VARCHAR(255),
+    license_image_mime VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Create backup_links table
+CREATE TABLE IF NOT EXISTS backup_links (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    url VARCHAR(500) NOT NULL,
+    description TEXT NOT NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);                                                                                                                                                                                 

@@ -1,73 +1,110 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/auth-context';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
-} from '@/components/ui/dialog';
-import { MapView } from '@/components/shared/map-view';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import {
-  getAllPaymentRequests,
-  getProjectById,
-  getProgressUpdateById
-} from '@/lib/storage';
-import { PaymentRequest, Project, ProgressUpdate } from '@/lib/types';
+import { getPaymentRequests, getProjects, getUsers } from '@/lib/api/api-client';
+import { Project, User } from '@/lib/types';
+import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const CheckerReviewHistory = () => {
-  const { user } = useAuth();
-  const [reviewedRequests, setReviewedRequests] = useState<PaymentRequest[]>([]);
-  const [filteredRequests, setFilteredRequests] = useState<PaymentRequest[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedRequest, setSelectedRequest] = useState<PaymentRequest | null>(null);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedProgress, setSelectedProgress] = useState<ProgressUpdate | null>(null);
+  const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+  const [loading, setLoading] = useState(true);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  
+  const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
+  const detailsButtonRef = useRef<HTMLButtonElement | null>(null);
+
   useEffect(() => {
-    // Get all payment requests that have been reviewed (not pending)
-    const requests = getAllPaymentRequests()
-      .filter(request => request.status !== 'pending')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    setReviewedRequests(requests);
-    setFilteredRequests(requests);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const allProjects = await getProjects();
+        setProjects(allProjects);
+        let allUsers: User[] = [];
+        try {
+          allUsers = await getUsers();
+        } catch {}
+        setUsers(allUsers);
+        const allPayments = await getPaymentRequests(0);
+        setPaymentRequests(allPayments);
+        await loadImagesForPayments(allPayments);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
   }, []);
-  
-  // Filter requests based on status
-  useEffect(() => {
-    if (statusFilter === 'all') {
-      setFilteredRequests(reviewedRequests);
-    } else {
-      setFilteredRequests(reviewedRequests.filter(req => req.status === statusFilter));
+
+  const loadImagesForPayments = async (payments: any[]) => {
+    const newImageUrls: { [key: string]: string } = {};
+    for (const payment of payments) {
+      if (payment.image_ids && payment.image_ids.length > 0) {
+        for (const imageId of payment.image_ids) {
+          const key = `${payment.id}-${imageId}`;
+          try {
+            const imageUrl = await displayImage(imageId, 'payment-request');
+            newImageUrls[key] = imageUrl;
+          } catch (error) {
+            console.error(`Error loading image ${imageId}:`, error);
+          }
+        }
+      }
+      if (payment.expenses && payment.expenses.length > 0) {
+        for (const expense of payment.expenses) {
+          if (expense.image_ids && expense.image_ids.length > 0) {
+            for (const imageId of expense.image_ids) {
+              const key = `expense-${expense.id}-${imageId}`;
+              try {
+                const imageUrl = await displayImage(imageId, 'payment-request');
+                newImageUrls[key] = imageUrl;
+              } catch (error) {
+                console.error(`Error loading expense image ${imageId}:`, error);
+              }
+            }
+          }
+        }
+      }
     }
-  }, [statusFilter, reviewedRequests]);
-  
-  const handleViewDetails = (request: PaymentRequest) => {
-    setSelectedRequest(request);
-    
-    // Get related project and progress update
-    const project = getProjectById(request.projectId);
-    setSelectedProject(project);
-    
-    if (request.progressUpdateId) {
-      const progressUpdate = getProgressUpdateById(request.progressUpdateId);
-      setSelectedProgress(progressUpdate);
-    } else {
-      setSelectedProgress(null);
-    }
-    
-    setShowDetailsDialog(true);
+    setImageUrls(newImageUrls);
   };
-  
+
+  useEffect(() => {
+    return () => {
+      Object.values(imageUrls).forEach(url => {
+        revokeBlobUrl(url);
+      });
+    };
+  }, [imageUrls]);
+
+  const filteredPayments = statusFilter === 'all'
+    ? paymentRequests
+    : paymentRequests.filter(payment => payment.status === statusFilter);
+
+  const groupedPayments = filteredPayments.reduce((groups: Record<string, any[]>, payment: any) => {
+    const date = new Date(payment.created_at || payment.date).toISOString();
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(payment);
+    return groups;
+  }, {} as Record<string, any[]>);
+
+  const sortedDates = Object.keys(groupedPayments).sort((a, b) =>
+    new Date(b).getTime() - new Date(a).getTime()
+  );
+
   const getStatusBadge = (status: string) => {
     switch(status) {
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Pending</Badge>;
       case 'approved':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Approved</Badge>;
       case 'rejected':
@@ -80,30 +117,54 @@ const CheckerReviewHistory = () => {
         return <Badge>{status}</Badge>;
     }
   };
-  
+
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    return new Date(dateString).toLocaleDateString();
   };
-  
+
+  const getProjectName = (projectId: string) => {
+    const project = projects.find(p => p.id === Number(projectId));
+    return project ? project.title : 'Unknown Project';
+  };
+
+  const getUserName = (userId: string | number, payment?: any) => {
+    if (payment && payment.requester_name) return payment.requester_name;
+    if (loading) return 'Loading...';
+    const user = users.find(u => String(u.id) === String(userId));
+    return user ? user.name : 'Unknown User';
+  };
+
+  useEffect(() => {
+    if (showDetailsDialog) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showDetailsDialog]);
+
+  const handleViewDetails = (payment: any, event?: React.MouseEvent<HTMLButtonElement>) => {
+    setSelectedPayment(payment);
+    setShowDetailsDialog(true);
+  };
+
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">Review History</h1>
+      <h1 className="text-4xl font-bold mb-6">Payment Review History</h1>
       <p className="text-muted-foreground mb-8">
-        View your past payment request reviews and decisions.
+        View all payment requests, their status, and details. Use the status filter to narrow results.
       </p>
-      
       <div className="mb-6 max-w-xs">
         <Label htmlFor="status-filter">Filter by Status</Label>
-        <Select
-          value={statusFilter}
-          onValueChange={setStatusFilter}
-        >
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger id="status-filter">
             <SelectValue placeholder="Select status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
             <SelectItem value="scheduled">Scheduled</SelectItem>
@@ -111,182 +172,166 @@ const CheckerReviewHistory = () => {
           </SelectContent>
         </Select>
       </div>
-      
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredRequests.map((request) => {
-          const project = getProjectById(request.projectId);
-          return (
-            <Card key={request.id}>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>{project?.name || 'Unknown Project'}</CardTitle>
-                  {getStatusBadge(request.status)}
-                </div>
-                <CardDescription>
-                  Reviewed on {formatDate(request.date)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <p className="font-medium">Amount</p>
-                    <p className="text-2xl">₹ {request.totalAmount}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="font-medium">Purposes</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {request.purposes.map((purpose, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-0.5 bg-muted rounded-full text-xs"
-                        >
-                          {purpose.type} (₹ {purpose.amount})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {request.checkerNotes && (
-                    <div>
-                      <p className="font-medium">Your Notes</p>
-                      <p className="text-sm text-muted-foreground">{request.checkerNotes}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => handleViewDetails(request)}
-                >
-                  View Details
-                </Button>
-              </CardFooter>
-            </Card>
-          );
-        })}
-        
-        {filteredRequests.length === 0 && (
+        {paymentRequests.length === 0 && (
           <Card className="col-span-full">
             <CardHeader>
-              <CardTitle>No Review History</CardTitle>
-              <CardDescription>
-                No payment requests match the selected filter.
-              </CardDescription>
+              <CardTitle>No Payment Requests</CardTitle>
+              <CardDescription>No payment requests match the selected filter.</CardDescription>
             </CardHeader>
           </Card>
         )}
-      </div>
-      
-      {/* Payment Details Dialog */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Payment Request Details</DialogTitle>
-            <DialogDescription>
-              Reviewed on {selectedRequest && formatDate(selectedRequest.date)}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedRequest && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Project Information</h3>
-                  <div className="space-y-1 text-sm">
-                    <p><span className="font-medium">Project:</span> {selectedProject?.name}</p>
-                    <p><span className="font-medium">Date:</span> {formatDate(selectedRequest.date)}</p>
-                    <p><span className="font-medium">Total Amount:</span> ₹ {selectedRequest.totalAmount}</p>
-                  </div>
+        {filteredPayments.map(payment => (
+          <Card key={payment.id}>
+            <CardHeader>
+              <CardTitle>{getProjectName(payment.projectId || payment.project_id)}</CardTitle>
+              <CardDescription>{formatDate(payment.created_at || payment.date)}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between mb-1">
+                  <span>Status:</span>
+                  <span>{getStatusBadge(payment.status)}</span>
                 </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Status Information</h3>
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      <span className="font-medium">Current Status:</span>{' '}
-                      {getStatusBadge(selectedRequest.status)}
-                    </p>
-                    {selectedRequest.checkerNotes && (
-                      <p>
-                        <span className="font-medium">Your Notes:</span>{' '}
-                        {selectedRequest.checkerNotes}
-                      </p>
-                    )}
-                    {selectedRequest.scheduledDate && selectedRequest.status === 'scheduled' && (
-                      <p>
-                        <span className="font-medium">Payment Scheduled For:</span>{' '}
-                        {formatDate(selectedRequest.scheduledDate)}
-                      </p>
-                    )}
-                  </div>
+                <div className="flex justify-between mb-1">
+                  <span>Requested by:</span>
+                  <span>{getUserName(payment.user_id, payment)}</span>
                 </div>
+                <div className="flex justify-between mb-1">
+                  <span>Amount:</span>
+                  <span className="font-semibold">₹ {Number(payment.total_amount || payment.totalAmount || 0).toFixed(2)}</span>
+                </div>
+                {payment.checkerNotes && (
+                  <div className="bg-muted p-2 rounded text-xs text-muted-foreground mt-2">
+                    <strong>Checker Notes:</strong> {payment.checkerNotes}
+                  </div>
+                )}
+                {payment.image_ids && payment.image_ids.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {payment.image_ids.map((imageId: number, index: number) => {
+                      const imageKey = `${payment.id}-${imageId}`;
+                      const imageUrl = imageUrls[imageKey];
+                      return (
+                        <div key={index} className="w-full h-24 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt={`Payment proof ${index + 1}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-gray-400">Loading...</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              
-              <div>
-                <h3 className="font-semibold mb-2">Payment Purposes</h3>
-                <div className="space-y-4">
-                  {selectedRequest.purposes.map((purpose, index) => (
-                    <div key={index} className="border rounded-md p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium capitalize">{purpose.type}</h4>
-                        <span>₹ {purpose.amount}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {purpose.images.map((image, imgIndex) => (
-                          <div key={imgIndex} className="relative">
-                            <img
-                              src={image.dataUrl}
-                              alt={`${purpose.type} image ${imgIndex + 1}`}
-                              className="w-full aspect-video object-cover rounded-md"
-                            />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                              {new Date(image.timestamp).toLocaleTimeString()}
+            </CardContent>
+            <CardFooter>
+              <Button variant="outline" className="w-full" onClick={e => handleViewDetails(payment, e)}>
+                View Details
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-3xl w-full max-h-[90vh]" position="center">
+          <div className="overflow-y-auto max-h-[75vh]">
+            <DialogHeader>
+              <DialogTitle>Payment Details</DialogTitle>
+              <DialogDescription>
+                {selectedPayment && (
+                  <div className="mb-2 space-y-1">
+                    <div><span className="font-medium">Project:</span> {getProjectName(selectedPayment.projectId || selectedPayment.project_id)}</div>
+                    <div><span className="font-medium">Requested by:</span> {getUserName(selectedPayment.user_id, selectedPayment)}</div>
+                    <div><span className="font-medium">Requested on:</span> {formatDate(selectedPayment.created_at || selectedPayment.date)}</div>
+                    <div><span className="font-medium">Status:</span> {getStatusBadge(selectedPayment.status)}</div>
+                    <div><span className="font-medium">Total Amount:</span> ₹ {Number(selectedPayment.total_amount || selectedPayment.totalAmount || 0).toFixed(2)}</div>
+                  </div>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPayment && (
+              <div className="space-y-6">
+                {selectedPayment.checkerNotes && (
+                  <div className="bg-muted p-3 rounded text-sm text-muted-foreground">
+                    <strong>Checker Notes:</strong> {selectedPayment.checkerNotes}
+                  </div>
+                )}
+                {selectedPayment.expenses && selectedPayment.expenses.length > 0 && (
+                  <div className="space-y-6">
+                    <h2 className="text-xl font-semibold">Expense Details</h2>
+                    {selectedPayment.expenses.map((expense: any, index: number) => (
+                      <Card key={index} className="mb-4">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <CardTitle className="text-lg">{expense.type}</CardTitle>
+                              <CardDescription>Expense #{index + 1}</CardDescription>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xl font-bold">₹ {Number(expense.amount).toFixed(2)}</div>
+                              <div className="text-sm text-muted-foreground">Amount</div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {selectedProgress && selectedProgress.photos.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2">Progress Photos</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {selectedProgress.photos.slice(0, 3).map((photo, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={photo.dataUrl}
-                          alt={`Progress photo ${index + 1}`}
-                          className="w-full aspect-video object-cover rounded-md"
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                          {new Date(photo.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {expense.remarks && (
+                              <div className="bg-muted p-2 rounded text-sm text-muted-foreground">
+                                <strong>Remarks:</strong> {expense.remarks}
+                              </div>
+                            )}
+                            {expense.image_ids && expense.image_ids.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-medium mb-2">Proof Images</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                  {expense.image_ids.map((imageId: number, imgIndex: number) => {
+                                    const imageKey = `expense-${expense.id}-${imageId}`;
+                                    const imageUrl = imageUrls[imageKey];
+                                    return (
+                                      <div key={imgIndex} className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                                        {imageUrl ? (
+                                          <img src={imageUrl} alt={`Expense proof ${imgIndex + 1}`} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="text-gray-400">Loading...</div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
-                  {selectedProgress.photos.length > 3 && (
-                    <p className="text-xs mt-2 text-muted-foreground">
-                      +{selectedProgress.photos.length - 3} more photos
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              {selectedProgress && selectedProgress.photos.length > 0 && selectedProgress.photos[0].location && (
-                <div>
-                  <h3 className="font-semibold mb-2">Location Information</h3>
-                  <MapView location={selectedProgress.photos[0].location} />
-                </div>
-              )}
-            </div>
-          )}
+                )}
+                {!selectedPayment.expenses && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Payment Details</CardTitle>
+                      <CardDescription>General payment information</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-medium mb-2">Amount</h4>
+                          <span className="text-lg font-semibold">₹ {Number(selectedPayment.total_amount || 0).toFixed(2)}</span>
+                        </div>
+                        {selectedPayment.description && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">Description</h4>
+                            <span className="text-sm bg-gray-50 p-3 rounded-md">{selectedPayment.description}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

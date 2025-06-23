@@ -1,6 +1,6 @@
 import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from './types';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 // Helper function for making API requests
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

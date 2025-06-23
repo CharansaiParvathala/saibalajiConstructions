@@ -71,3 +71,39 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Running Server and Client Independently
+
+- **Server**
+  - Go to the `server` directory:
+    ```sh
+    cd server
+    ```
+  - Install dependencies:
+    ```sh
+    npm install
+    ```
+  - For development (auto-reload):
+    ```sh
+    npm run dev
+    ```
+  - For production:
+    ```sh
+    npm run build
+    npm start
+    ```
+  - The server runs on [http://localhost:3001](http://localhost:3001) by default.
+  - CORS is enabled for all origins (suitable for local development).
+
+- **Client**
+  - Go to the root or `client` directory (wherever your React app is):
+    ```sh
+    npm install
+    npm run dev
+    ```
+  - The client runs on [http://localhost:5173](http://localhost:5173) or [http://localhost:3000](http://localhost:3000) by default.
+  - Make sure your API URLs in the client point to `http://localhost:3001/api/...`.
+
+- **Summary**
+  - You can start and stop the server and client independently.
+  - All API endpoints are available at `/api/...` on the server port.

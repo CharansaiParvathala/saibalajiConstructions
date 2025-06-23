@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db/config';
 import { authenticateToken } from '../middleware/auth';
+import { uploadMemory } from '../services/file-upload';
 
 const router = express.Router();
 
@@ -61,58 +62,17 @@ router.get('/test', async (req, res) => {
       console.log('Final submissions tables created successfully');
     }
     
-    // Test BLOB insertion with a small test
-    const testConnection = await pool.getConnection();
-    try {
-      await testConnection.execute('SET SESSION max_allowed_packet = 16777216');
-      console.log('Set max_allowed_packet for test connection');
-      
-      // Create a test submission if none exists
-      const [existingSubmissions] = await testConnection.execute(
-        'SELECT COUNT(*) as count FROM final_submissions LIMIT 1'
-      );
-      
-      let testSubmissionId = null;
-      if ((existingSubmissions as any)[0]?.count === 0) {
-        // Create a test submission
-        const [insertResult] = await testConnection.execute(
-          'INSERT INTO final_submissions (project_id, leader_id, submission_date, timer_duration, status) VALUES (1, 1, NOW(), 600, "in_progress")'
-        );
-        testSubmissionId = (insertResult as any).insertId;
-        console.log('Created test submission with ID:', testSubmissionId);
-      }
-      
-      // Test BLOB insertion with a small image
-      if (testSubmissionId) {
-        const testImageData = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
-        await testConnection.execute(
-          'INSERT INTO final_submission_images (final_submission_id, image_data) VALUES (?, ?)',
-          [testSubmissionId, testImageData]
-        );
-        console.log('Successfully inserted test BLOB data');
-        
-        // Clean up test data
-        await testConnection.execute('DELETE FROM final_submission_images WHERE final_submission_id = ?', [testSubmissionId]);
-        await testConnection.execute('DELETE FROM final_submissions WHERE id = ?', [testSubmissionId]);
-        console.log('Cleaned up test data');
-      }
-    } finally {
-      testConnection.release();
-    }
-    
     res.json({
       databaseConnected: true,
       finalSubmissionsTableExists: true,
       testResult: result,
-      tablesCreated: !tableExists,
-      blobTest: 'successful'
+      tablesCreated: !tableExists
     });
   } catch (error) {
     console.error('Database test error:', error);
     res.status(500).json({
       databaseConnected: false,
-      error: error.message,
-      stack: error.stack
+      error: error.message
     });
   }
 });
@@ -199,7 +159,31 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
     const { projectId } = req.params;
     const { leaderId } = req.body;
     
+    console.log('=== START TIMER DEBUG ===');
     console.log('Starting timer for project:', projectId, 'leader:', leaderId);
+    
+    // First, let's check the project details
+    const [projectCheck] = await pool.execute(
+      'SELECT id, title, completed_work, total_work, (completed_work / total_work * 100) as completion_percentage FROM projects WHERE id = ?',
+      [projectId]
+    );
+    
+    console.log('Project details:', projectCheck);
+    
+    if (!projectCheck || projectCheck.length === 0) {
+      console.log('Project not found');
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const project = projectCheck[0];
+    const completionPercentage = Math.round(project.completion_percentage || 0);
+    console.log('Project completion:', {
+      completed_work: project.completed_work,
+      total_work: project.total_work,
+      completion_percentage: completionPercentage,
+      is_100_percent: project.completed_work >= project.total_work,
+      is_95_percent: (project.completed_work / project.total_work) >= 0.95
+    });
     
     // Check if final_submissions table exists, create if it doesn't
     try {
@@ -255,16 +239,36 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
       // Continue anyway, the table might already exist
     }
     
-    // Check if project is completed (100% work done)
+    // Check if project is completed (100% work done or at least 95% complete)
     const [projects] = await pool.execute(
-      'SELECT * FROM projects WHERE id = ? AND completed_work >= total_work',
+      'SELECT * FROM projects WHERE id = ? AND (completed_work >= total_work OR (completed_work / total_work) >= 0.95)',
       [projectId]
     );
     
-    console.log('Found projects:', projects);
+    console.log('Found projects meeting completion criteria:', projects);
     
     if (!projects || projects.length === 0) {
-      return res.status(400).json({ error: 'Project is not completed yet' });
+      // Get project details for better error message
+      const [projectDetails] = await pool.execute(
+        'SELECT id, title, completed_work, total_work, (completed_work / total_work * 100) as completion_percentage FROM projects WHERE id = ?',
+        [projectId]
+      );
+      
+      if (projectDetails && projectDetails.length > 0) {
+        const project = projectDetails[0];
+        const completionPercentage = Math.round(project.completion_percentage || 0);
+        console.log('Project does not meet completion criteria:', {
+          completed_work: project.completed_work,
+          total_work: project.total_work,
+          completion_percentage: completionPercentage
+        });
+        return res.status(400).json({ 
+          error: `Project is not completed yet. Current progress: ${project.completed_work}/${project.total_work} (${completionPercentage}%)` 
+        });
+      } else {
+        console.log('Project not found in database');
+        return res.status(400).json({ error: 'Project not found' });
+      }
     }
     
     // Check if there's already an active timer for this project
@@ -276,6 +280,7 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
     console.log('Existing submissions:', existingSubmissions);
     
     if (existingSubmissions && existingSubmissions.length > 0) {
+      console.log('Timer already active for this project');
       return res.status(400).json({ error: 'Timer already active for this project' });
     }
     
@@ -300,6 +305,7 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
     const submissionId = (result as any).insertId;
     
     console.log('Created submission with ID:', submissionId);
+    console.log('=== START TIMER DEBUG END ===');
     
     res.json({ 
       submissionId, 
@@ -308,6 +314,7 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
       message: 'Timer started successfully'
     });
   } catch (error) {
+    console.error('=== START TIMER ERROR ===');
     console.error('Error starting timer:', error);
     console.error('Error details:', {
       message: error.message,
@@ -319,56 +326,34 @@ router.post('/:projectId/start-timer', authenticateToken, async (req, res) => {
 });
 
 // Upload images during timer period
-router.post('/:submissionId/upload-images', authenticateToken, async (req, res) => {
+router.post('/:submissionId/upload-images', authenticateToken, uploadMemory.array('images', 10), async (req, res) => {
   let connection;
   try {
     const { submissionId } = req.params;
-    const { images } = req.body; // Array of base64 images
+    const files = req.files as Express.Multer.File[];
     
     console.log('=== UPLOAD IMAGES DEBUG START ===');
     console.log('Uploading images for submission:', submissionId);
-    console.log('Number of images:', images ? images.length : 0);
-    console.log('Request body keys:', Object.keys(req.body));
-    console.log('Request body size:', JSON.stringify(req.body).length);
-    
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      console.log('No images provided or invalid format');
+    console.log('Number of files:', files ? files.length : 0);
+    if (!files || files.length === 0) {
+      console.log('No images provided');
       return res.status(400).json({ error: 'No images provided' });
     }
     
     // Get a connection for transaction
     console.log('Getting database connection...');
-    try {
-      connection = await pool.getConnection();
-      console.log('Database connection acquired');
-    } catch (connectionError) {
-      console.error('Failed to get database connection:', connectionError);
-      return res.status(500).json({ error: 'Database connection failed', details: connectionError.message });
-    }
+    connection = await pool.getConnection();
+    console.log('Database connection acquired');
     
-    try {
-      await connection.beginTransaction();
-      console.log('Transaction started');
-    } catch (transactionError) {
-      console.error('Failed to start transaction:', transactionError);
-      connection.release();
-      return res.status(500).json({ error: 'Failed to start transaction', details: transactionError.message });
-    }
+    await connection.beginTransaction();
+    console.log('Transaction started');
     
     // Check if submission exists and timer is still active
     console.log('Checking submission status...');
-    let submissions;
-    try {
-      [submissions] = await connection.execute(
-        'SELECT * FROM final_submissions WHERE id = ? AND status = "in_progress"',
-        [submissionId]
-      );
-    } catch (queryError) {
-      console.error('Failed to query submission:', queryError);
-      await connection.rollback();
-      connection.release();
-      return res.status(500).json({ error: 'Failed to check submission status', details: queryError.message });
-    }
+    const [submissions] = await connection.execute(
+      'SELECT * FROM final_submissions WHERE id = ? AND status = "in_progress"',
+      [submissionId]
+    );
     
     console.log('Found submissions:', submissions);
     console.log('Submission count:', submissions.length);
@@ -376,7 +361,6 @@ router.post('/:submissionId/upload-images', authenticateToken, async (req, res) 
     if (!submissions || submissions.length === 0) {
       console.log('No active submission found, rolling back...');
       await connection.rollback();
-      connection.release();
       return res.status(400).json({ error: 'No active submission found' });
     }
     
@@ -396,146 +380,53 @@ router.post('/:submissionId/upload-images', authenticateToken, async (req, res) 
     if (elapsedSeconds > submission.timer_duration) {
       console.log('Timer expired, updating status and rolling back...');
       // Timer expired, update status
-      try {
-        await connection.execute(
-          'UPDATE final_submissions SET status = "expired", timer_ended_at = ? WHERE id = ?',
-          [now, submissionId]
-        );
-      } catch (updateError) {
-        console.error('Failed to update expired status:', updateError);
-      }
+      await connection.execute(
+        'UPDATE final_submissions SET status = "expired", timer_ended_at = ? WHERE id = ?',
+        [now, submissionId]
+      );
       await connection.rollback();
-      connection.release();
       return res.status(400).json({ error: 'Timer has expired' });
     }
     
     // Upload images
     console.log('Starting image upload process...');
     const uploadedImages = [];
-    const errors = [];
-    
-    for (let i = 0; i < images.length; i++) {
+    for (let i = 0; i < files.length; i++) {
       try {
-        const imageData = images[i];
-        console.log(`Processing image ${i + 1}/${images.length}`);
-        console.log(`Image data type:`, typeof imageData);
-        console.log(`Image data length:`, imageData ? imageData.length : 0);
-        console.log(`Image data preview:`, imageData ? imageData.substring(0, 50) + '...' : 'null');
-        
-        if (!imageData || typeof imageData !== 'string') {
-          console.log(`Skipping image ${i + 1} - no data or invalid type`);
-          errors.push(`Image ${i + 1}: No data or invalid type`);
+        const file = files[i];
+        console.log(`Processing file ${i + 1}/${files.length}`);
+        if (!file || !file.buffer) {
+          console.log(`Skipping file ${i + 1} - no data`);
           continue;
         }
-        
-        // Remove any whitespace from the base64 string
-        const cleanImageData = imageData.trim();
-        
-        // Validate base64 data - more permissive validation
-        if (!cleanImageData || cleanImageData.length === 0) {
-          console.log(`Skipping image ${i + 1} - empty data`);
-          errors.push(`Image ${i + 1}: Empty data`);
-          continue;
-        }
-        
-        // Check if it's valid base64 by trying to decode it
-        let testBuffer;
-        try {
-          // Test if the base64 can be decoded
-          testBuffer = Buffer.from(cleanImageData, 'base64');
-          if (testBuffer.length === 0) {
-            console.log(`Skipping image ${i + 1} - invalid base64 (empty buffer)`);
-            errors.push(`Image ${i + 1}: Invalid base64 data`);
-            continue;
-          }
-          console.log(`Image ${i + 1} buffer size:`, testBuffer.length);
-        } catch (decodeError) {
-          console.log(`Skipping image ${i + 1} - invalid base64:`, decodeError.message);
-          errors.push(`Image ${i + 1}: Invalid base64 data`);
-          continue;
-        }
-        
-        console.log(`Inserting image ${i + 1} into database...`);
-        let imageResult;
-        try {
-          [imageResult] = await connection.execute(
-            'INSERT INTO final_submission_images (final_submission_id, image_data) VALUES (?, ?)',
-            [submissionId, testBuffer]
-          );
-        } catch (insertError) {
-          console.error(`Database error inserting image ${i + 1}:`, insertError);
-          console.error(`Error details:`, {
-            message: insertError.message,
-            code: insertError.code,
-            sqlMessage: insertError.sqlMessage,
-            sqlState: insertError.sqlState
-          });
-          throw insertError;
-        }
-        
+        console.log(`Inserting file ${i + 1} into database...`);
+        const [imageResult] = await connection.execute(
+          'INSERT INTO final_submission_images (final_submission_id, image_data) VALUES (?, ?)',
+          [submissionId, file.buffer]
+        );
         const imageId = (imageResult as any).insertId;
         uploadedImages.push(imageId);
-        console.log(`Successfully uploaded image ${i + 1} with ID:`, imageId);
+        console.log(`Successfully uploaded file ${i + 1} with ID:`, imageId);
       } catch (imageError) {
-        console.error(`Error uploading image ${i + 1}:`, imageError);
-        console.error(`Error details:`, {
-          message: imageError.message,
-          stack: imageError.stack,
-          sqlMessage: imageError.sqlMessage,
-          code: imageError.code,
-          sqlState: imageError.sqlState
-        });
-        errors.push(`Image ${i + 1}: ${imageError.message}`);
-        
-        // Don't rollback immediately, continue with other images
-        // We'll rollback only if no images were uploaded successfully
+        console.error(`Error uploading file ${i + 1}:`, imageError);
+        await connection.rollback();
+        throw imageError;
       }
     }
     
     console.log('Total images uploaded:', uploadedImages.length);
-    console.log('Errors encountered:', errors);
-    
-    // If no images were uploaded successfully, rollback
-    if (uploadedImages.length === 0) {
-      console.log('No images uploaded successfully, rolling back...');
-      try {
-        await connection.rollback();
-        console.log('Transaction rolled back');
-      } catch (rollbackError) {
-        console.error('Error rolling back transaction:', rollbackError);
-      }
-      connection.release();
-      return res.status(400).json({ 
-        error: 'Failed to upload any images',
-        details: errors.join(', ')
-      });
-    }
-    
     console.log('Committing transaction...');
     
     // Commit transaction
-    try {
-      await connection.commit();
-      console.log('Transaction committed successfully');
-    } catch (commitError) {
-      console.error('Failed to commit transaction:', commitError);
-      try {
-        await connection.rollback();
-        console.log('Transaction rolled back after commit failure');
-      } catch (rollbackError) {
-        console.error('Error rolling back transaction:', rollbackError);
-      }
-      connection.release();
-      return res.status(500).json({ error: 'Failed to commit transaction', details: commitError.message });
-    }
+    await connection.commit();
+    console.log('Transaction committed successfully');
     
     console.log('=== UPLOAD IMAGES DEBUG END ===');
     
     res.json({ 
       message: 'Images uploaded successfully',
       uploadedCount: uploadedImages.length,
-      timeRemaining: submission.timer_duration - elapsedSeconds,
-      errors: errors.length > 0 ? errors : undefined
+      timeRemaining: submission.timer_duration - elapsedSeconds
     });
   } catch (error) {
     console.error('=== UPLOAD IMAGES ERROR ===');
@@ -543,9 +434,7 @@ router.post('/:submissionId/upload-images', authenticateToken, async (req, res) 
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      sqlMessage: error.sqlMessage,
-      code: error.code,
-      sqlState: error.sqlState
+      sqlMessage: error.sqlMessage
     });
     
     // Rollback transaction if connection exists
@@ -748,67 +637,6 @@ router.get('/:submissionId/timer-status', authenticateToken, async (req, res) =>
   } catch (error) {
     console.error('Error fetching timer status:', error);
     res.status(500).json({ error: 'Failed to fetch timer status' });
-  }
-});
-
-// Debug endpoint to test image upload
-router.post('/debug/upload-test', authenticateToken, async (req, res) => {
-  try {
-    const { images } = req.body;
-    
-    console.log('=== DEBUG UPLOAD TEST ===');
-    console.log('Number of images received:', images ? images.length : 0);
-    
-    if (!images || !Array.isArray(images)) {
-      return res.json({
-        success: false,
-        error: 'No images array provided'
-      });
-    }
-    
-    const results = [];
-    
-    for (let i = 0; i < images.length; i++) {
-      const imageData = images[i];
-      const result = {
-        index: i,
-        type: typeof imageData,
-        length: imageData ? imageData.length : 0,
-        preview: imageData ? imageData.substring(0, 50) + '...' : 'null',
-        isValidBase64: false,
-        bufferSize: 0,
-        error: null
-      };
-      
-      try {
-        if (imageData && typeof imageData === 'string') {
-          const cleanData = imageData.trim();
-          if (cleanData.length > 0) {
-            const buffer = Buffer.from(cleanData, 'base64');
-            result.isValidBase64 = true;
-            result.bufferSize = buffer.length;
-          }
-        }
-      } catch (error) {
-        result.error = error.message;
-      }
-      
-      results.push(result);
-    }
-    
-    console.log('Debug results:', results);
-    
-    res.json({
-      success: true,
-      totalImages: images.length,
-      results: results
-    });
-  } catch (error) {
-    console.error('Debug upload test error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
 });
 

@@ -65,6 +65,70 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
+// Get all payment requests for admin dashboard with total amounts
+router.get('/admin-summary', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    const user = (req as any).user;
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      return res.status(403).json({ error: 'Access denied. Admin/Owner only.' });
+    }
+
+    // Get all payment requests with their total amounts
+    const [rows] = await pool.query(`
+      SELECT 
+        pr.id,
+        pr.project_id,
+        pr.user_id,
+        pr.total_amount,
+        pr.status,
+        pr.description,
+        pr.created_at,
+        pr.updated_at,
+        p.title as project_title,
+        u.name as requester_name
+      FROM payment_requests pr
+      JOIN projects p ON pr.project_id = p.id
+      JOIN users u ON p.leader_id = u.id
+      ORDER BY pr.created_at DESC
+    `) as [any[], any];
+
+    // Calculate totals
+    const totalAmount = rows.reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0);
+    const paidAmount = rows
+      .filter(row => row.status === 'paid')
+      .reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0);
+    const pendingCount = rows.filter(row => row.status === 'pending').length;
+    const approvedCount = rows.filter(row => row.status === 'approved').length;
+    const rejectedCount = rows.filter(row => row.status === 'rejected').length;
+    const scheduledCount = rows.filter(row => row.status === 'scheduled').length;
+    const paidCount = rows.filter(row => row.status === 'paid').length;
+
+    // Format the response
+    const formattedRows = rows.map(row => ({
+      ...row,
+      total_amount: parseFloat(row.total_amount) || 0
+    }));
+
+    res.json({
+      paymentRequests: formattedRows,
+      summary: {
+        totalAmount: Math.round(totalAmount),
+        paidAmount: Math.round(paidAmount),
+        pendingCount,
+        approvedCount,
+        rejectedCount,
+        scheduledCount,
+        paidCount,
+        totalCount: rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin payment summary:', error);
+    res.status(500).json({ error: 'Failed to fetch admin payment summary' });
+  }
+});
+
 // Get payment requests for a specific project
 router.get('/project/:projectId', authenticateToken, async (req: Request, res: Response) => {
   try {

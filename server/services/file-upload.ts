@@ -39,6 +39,15 @@ export const upload = multer({
   }
 });
 
+// In-memory storage for BLOB uploads
+export const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
 // Function to get file URL
 export const getFileUrl = (filename: string): string => {
   return `/uploads/${filename}`;

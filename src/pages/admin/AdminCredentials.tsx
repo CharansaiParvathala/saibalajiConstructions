@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/sonner';
-import { getAllUsers, createUser, updateUser, deleteUser, getUsersByRole } from '@/lib/storage';
+import { getUsers, createUser, updateUser, apiRequest } from '@/lib/api/api-client';
 import { User, UserRole } from '@/lib/types';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,6 +26,7 @@ const AdminCredentials = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('leader');
+  const [mobileNumber, setMobileNumber] = useState('');
   
   // Redirect if not admin
   useEffect(() => {
@@ -39,34 +40,34 @@ const AdminCredentials = () => {
     loadUsers();
   }, []);
   
-  const loadUsers = () => {
-    const allUsers = getAllUsers();
+  const loadUsers = async () => {
+    try {
+      const allUsers = await getUsers();
     setUsers(allUsers);
+    } catch (error) {
+      toast.error(t('app.admin.credentials.fetchError'));
+    }
   };
   
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!name || !email || !password || !role) {
       toast.error(t("app.admin.credentials.allFieldsRequired"));
       return;
     }
-    
     try {
       const userData = {
-        id: Date.now().toString(),
         name,
         email,
         role,
         password,
+        mobileNumber,
         createdAt: new Date().toISOString(),
         createdBy: user?.id || 'unknown'
       };
-
-      createUser(userData);
-      setUsers(prev => [...prev, userData]);
+      await createUser(userData);
       setShowAddDialog(false);
       resetForm();
-      loadUsers();
-      
+      await loadUsers();
       toast.success(t("app.admin.credentials.userCreated"));
     } catch (error) {
       console.error("Error creating user:", error);
@@ -74,39 +75,48 @@ const AdminCredentials = () => {
     }
   };
   
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!selectedUser || !name || !email || !role) {
       toast.error(t("app.admin.credentials.allFieldsRequired"));
       return;
     }
-    
     try {
-      updateUser({
+      await updateUser({
         ...selectedUser,
         name,
         email,
         password: password || selectedUser.password,
-        role
+        role,
+        mobileNumber
       });
-      
       toast.success(t("app.admin.credentials.userUpdated"));
       setShowEditDialog(false);
       resetForm();
-      loadUsers();
+      await loadUsers();
     } catch (error) {
       console.error("Error updating user:", error);
       toast.error(t("app.admin.credentials.updateError"));
     }
   };
   
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     try {
-      deleteUser(userId);
-      setUsers(prev => prev.filter(u => u.id !== userId));
+      await apiRequest<void>(`/users/${userId}`, { method: 'DELETE' });
       toast.success(t("app.admin.credentials.userDeleted"));
+      await loadUsers();
     } catch (error) {
       console.error("Error deleting user:", error);
       toast.error(t("app.admin.credentials.deleteError"));
+    }
+  };
+  
+  const handleResetPassword = async (userId: string) => {
+    try {
+      await apiRequest<void>(`/auth/users/${userId}/reset-password`, { method: 'POST' });
+      toast.success(t('app.admin.credentials.passwordReset'));
+      await loadUsers();
+    } catch (error) {
+      toast.error(t('app.admin.credentials.resetError'));
     }
   };
   
@@ -116,6 +126,7 @@ const AdminCredentials = () => {
     setEmail(user.email);
     setPassword('');
     setRole(user.role);
+    setMobileNumber(user.mobileNumber || '');
     setShowEditDialog(true);
   };
   
@@ -129,6 +140,7 @@ const AdminCredentials = () => {
     setEmail('');
     setPassword('');
     setRole('leader');
+    setMobileNumber('');
     setSelectedUser(null);
   };
   
@@ -152,15 +164,21 @@ const AdminCredentials = () => {
     setRole(value as UserRole);
   };
 
+  const downloadBlob = (blob, filename, mimeType = 'image/jpeg') => {
+    const url = URL.createObjectURL(new Blob([blob], { type: mimeType }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-4xl font-bold mb-6">{t("app.admin.credentials.title")}</h1>
       <p className="text-muted-foreground mb-8">
         {t("app.admin.credentials.description")}
       </p>
-      
-      <div className="grid gap-6 md:grid-cols-2">
-        <div>
           <Card>
             <CardHeader>
               <CardTitle>{t("app.admin.credentials.userAccounts")}</CardTitle>
@@ -172,24 +190,22 @@ const AdminCredentials = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium">{t("app.admin.credentials.adminUsers")}:</p>
-                  <p className="text-2xl font-bold">{getUserCount('admin')}</p>
+              <p className="text-2xl font-bold">{getUserCount('admin' as UserRole)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">{t("app.admin.credentials.teamLeaders")}:</p>
-                  <p className="text-2xl font-bold">{getUserCount('leader')}</p>
+              <p className="text-2xl font-bold">{getUserCount('leader' as UserRole)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">{t("app.admin.credentials.qualityCheckers")}:</p>
-                  <p className="text-2xl font-bold">{getUserCount('checker')}</p>
+              <p className="text-2xl font-bold">{getUserCount('checker' as UserRole)}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium">{t("app.admin.credentials.owners")}:</p>
-                  <p className="text-2xl font-bold">{getUserCount('owner')}</p>
+              <p className="text-2xl font-bold">{getUserCount('owner' as UserRole)}</p>
                 </div>
               </div>
-              
               <Button onClick={() => setShowAddDialog(true)}>{t("app.admin.credentials.addUser")}</Button>
-              
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
@@ -220,11 +236,19 @@ const AdminCredentials = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Button
-                            variant="destructive"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(user)}
+                        className="mr-2"
+                      >
+                        {t("app.admin.credentials.edit")}
+                      </Button>
+                      <Button
+                        variant="secondary"
                             size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => handleResetPassword(user.id)}
                           >
-                            {t("app.admin.credentials.delete")}
+                        {t("app.admin.credentials.resetPassword")}
                           </Button>
                         </td>
                       </tr>
@@ -234,8 +258,6 @@ const AdminCredentials = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
       
       {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -265,6 +287,12 @@ const AdminCredentials = () => {
                 {t("app.admin.credentials.password")}
               </Label>
               <Input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="mobileNumber" className="text-right">
+                {t("app.admin.credentials.mobileNumber")}
+              </Label>
+              <Input id="mobileNumber" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
@@ -323,6 +351,12 @@ const AdminCredentials = () => {
                 {t("app.admin.credentials.password")}
               </Label>
               <Input type="password" id="password" placeholder={t("app.admin.credentials.leaveBlank")} onChange={(e) => setPassword(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="mobileNumber" className="text-right">
+                {t("app.admin.credentials.mobileNumber")}
+              </Label>
+              <Input id="mobileNumber" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">

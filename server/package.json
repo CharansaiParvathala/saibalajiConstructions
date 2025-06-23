@@ -5,9 +5,12 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "dev": "nodemon index.ts",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "dev:client": "cd .. && npm run dev:client",
+    "dev:server": "npm run dev",
+    "client": "cd .. && npm run dev:client"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

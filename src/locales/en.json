@@ -362,7 +362,9 @@
         "meters": "meters",
         "timeSpent": "Time Spent",
         "hours": "hours",
+        "updates": "Updates",
         "latestUpdate": "Latest Update",
+        "lastActivity": "Last Activity",
         "in": "in",
         "viewDetailedStats": "View Detailed Stats",
         "userDistribution": "User Distribution",
@@ -471,7 +473,13 @@
         "selectProject": "Select Project",
         "aspectRatio": "Aspect Ratio",
         "original": "Original",
-        "export": "Export"
+        "export": "Export",
+        "comprehensiveExport": "Comprehensive Export",
+        "comprehensiveExportDesc": "Export all project data, payments, and statistics in a comprehensive report",
+        "projectBasedExport": "Project-Based Export",
+        "projectBasedExportDesc": "Export data for a specific project with progress and payment information",
+        "chooseProjectToExport": "Choose a project to export",
+        "exportProjectReport": "Export Project Report (PDF)"
       }
     },
     "leader": {

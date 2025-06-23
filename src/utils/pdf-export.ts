@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Project, ProgressUpdate, PaymentRequest } from '@/lib/types';
+import { getProgressImage, getPaymentRequestImage } from '@/lib/api/api-client';
 
 // Add type definitions for jspdf-autotable
 declare module 'jspdf' {
@@ -26,6 +27,80 @@ interface PdfExportOptions {
     opacity: number;
   };
 }
+
+/**
+ * Convert blob to base64 string
+ */
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Fetch image and convert to base64 for PDF export
+ */
+const fetchImageForPdf = async (imageId: number, type: 'progress' | 'payment-request'): Promise<string> => {
+  try {
+    let blob: Blob;
+    if (type === 'progress') {
+      blob = await getProgressImage(imageId);
+    } else {
+      blob = await getPaymentRequestImage(imageId);
+    }
+    return await blobToBase64(blob);
+  } catch (error) {
+    console.error(`Error fetching image ${imageId} for PDF:`, error);
+    return '';
+  }
+};
+
+/**
+ * Process project-specific images for export
+ */
+const processProjectImagesForExport = async (projectData: any): Promise<any> => {
+  const processedData = { ...projectData };
+  
+  // Process progress images
+  for (const progressItem of processedData.progress) {
+    if (progressItem.images && progressItem.images.length > 0) {
+      const processedImages = [];
+      for (const image of progressItem.images) {
+        if (image.id) {
+          const base64Url = await fetchImageForPdf(image.id, 'progress');
+          if (base64Url) {
+            processedImages.push({ ...image, url: base64Url });
+          }
+        }
+      }
+      progressItem.images = processedImages;
+    }
+  }
+  
+  // Process payment images
+  for (const paymentItem of processedData.payments) {
+    if (paymentItem.images && paymentItem.images.length > 0) {
+      const processedImages = [];
+      for (const image of paymentItem.images) {
+        if (image.id) {
+          const base64Url = await fetchImageForPdf(image.id, 'payment-request');
+          if (base64Url) {
+            processedImages.push({ ...image, url: base64Url });
+          }
+        }
+      }
+      paymentItem.images = processedImages;
+    }
+  }
+  
+  return processedData;
+};
 
 export const exportToPDF = ({
   title,
@@ -390,4 +465,354 @@ export const exportPaymentsToPDF = async (payments: PaymentRequest[]): Promise<v
     console.error("Error exporting payments to PDF:", error);
     throw error;
   }
+};
+
+// Export project-specific data to PDF
+export const exportProjectDataToPDF = async (projectData: any) => {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  
+  // Process images first - fetch and convert to base64
+  console.log('Processing images for project export...');
+  const processedData = await processProjectImagesForExport(projectData);
+  console.log('Project images processed successfully');
+  
+  let yPosition = 20;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 20;
+  const lineHeight = 7;
+  
+  // Title with styling
+  doc.setFontSize(24);
+  doc.setTextColor(44, 62, 80); // Dark blue-gray
+  doc.setFont('helvetica', 'bold');
+  doc.text('Sai Balaji Progress Tracker - Project Report', margin, yPosition);
+  yPosition += 15;
+  
+  doc.setFontSize(12);
+  doc.setTextColor(127, 140, 141); // Gray
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, margin, yPosition);
+  yPosition += 20;
+  
+  // User section with styling
+  doc.setFontSize(18);
+  doc.setTextColor(52, 73, 94); // Dark blue
+  doc.setFont('helvetica', 'bold');
+  doc.text(`User: ${processedData.user.name}`, margin, yPosition);
+  yPosition += 10;
+  
+  doc.setFontSize(11);
+  doc.setTextColor(44, 62, 80); // Dark blue-gray
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Email: ${processedData.user.email}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Mobile: ${processedData.user.mobile || 'N/A'}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Role: ${processedData.user.role}`, margin, yPosition);
+  yPosition += 15;
+    
+  // Project section with styling
+    doc.setFontSize(16);
+  doc.setTextColor(41, 128, 185); // Blue
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Project: ${processedData.project.title}`, margin, yPosition);
+  yPosition += 10;
+  
+  doc.setFontSize(11);
+  doc.setTextColor(44, 62, 80); // Dark blue-gray
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Description: ${processedData.project.description || 'N/A'}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Status: ${processedData.project.status}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Start Date: ${processedData.project.start_date || 'N/A'}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`End Date: ${processedData.project.end_date || 'N/A'}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Total Work: ${processedData.project.total_work}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Completed Work: ${processedData.project.completed_work}`, margin, yPosition);
+  yPosition += lineHeight;
+  doc.text(`Progress: ${Math.round((processedData.project.completed_work / processedData.project.total_work) * 100)}%`, margin, yPosition);
+  yPosition += 15;
+  
+  // Progress updates with images
+  if (processedData.progress.length > 0) {
+    doc.setFontSize(14);
+    doc.setTextColor(39, 174, 96); // Green
+    doc.setFont('helvetica', 'bold');
+    doc.text('Progress Data:', margin, yPosition);
+    yPosition += 10;
+    
+    for (const progressItem of processedData.progress) {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 100) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      // Progress header
+      doc.setFontSize(12);
+      doc.setTextColor(52, 73, 94); // Dark blue
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${progressItem.progress.description}`, margin, yPosition);
+      yPosition += lineHeight;
+      
+      // Progress details
+      doc.setFontSize(10);
+      doc.setTextColor(44, 62, 80); // Dark blue-gray
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Status: ${progressItem.progress.status}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Completion: ${progressItem.progress.completion_percentage}%`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Completed Work: ${progressItem.progress.completed_work}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Date: ${new Date(progressItem.progress.created_at).toLocaleDateString()}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      
+      // Progress images
+      if (progressItem.images && progressItem.images.length > 0) {
+        doc.setFontSize(11);
+        doc.setTextColor(155, 89, 182); // Purple
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Progress Images (${progressItem.images.length}):`, margin + 5, yPosition);
+        yPosition += lineHeight;
+        
+        // Add images in a grid layout
+        const imagesPerRow = 2;
+        const imageWidth = 80;
+        const imageHeight = 60;
+        const imageSpacing = 10;
+        
+        for (let i = 0; i < progressItem.images.length; i++) {
+          const row = Math.floor(i / imagesPerRow);
+          const col = i % imagesPerRow;
+          const imageX = margin + 5 + (col * (imageWidth + imageSpacing));
+          const imageY = yPosition + (row * (imageHeight + 5));
+          
+          // Check if we need a new page for images
+          if (imageY + imageHeight > pageHeight - 20) {
+            doc.addPage();
+            yPosition = 20;
+            // Recalculate position for new page
+            const newRow = Math.floor(i / imagesPerRow);
+            const newImageY = yPosition + (newRow * (imageHeight + 5));
+            doc.addImage(progressItem.images[i].url, 'JPEG', imageX, newImageY, imageWidth, imageHeight);
+          } else {
+            doc.addImage(progressItem.images[i].url, 'JPEG', imageX, imageY, imageWidth, imageHeight);
+          }
+        }
+        
+        // Update yPosition after images
+        const totalRows = Math.ceil(progressItem.images.length / imagesPerRow);
+        yPosition += (totalRows * (imageHeight + 5)) + 10;
+      }
+      
+      // Find related payment data for this progress
+      const relatedPayments = processedData.payments.filter((payment: any) => 
+        payment.payment.related_progress_id === progressItem.progress.id
+      );
+      
+      if (relatedPayments.length > 0) {
+        doc.setFontSize(11);
+        doc.setTextColor(230, 126, 34); // Orange
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Related Payments:`, margin + 5, yPosition);
+        yPosition += lineHeight;
+        
+        for (const paymentItem of relatedPayments) {
+          // Check if we need a new page
+          if (yPosition > pageHeight - 120) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          doc.setFontSize(10);
+          doc.setTextColor(44, 62, 80); // Dark blue-gray
+          doc.setFont('helvetica', 'normal');
+          doc.text(`• Amount: ₹${paymentItem.payment.total_amount}`, margin + 10, yPosition);
+          yPosition += lineHeight;
+          doc.text(`  Status: ${paymentItem.payment.status}`, margin + 15, yPosition);
+          yPosition += lineHeight;
+          doc.text(`  Description: ${paymentItem.payment.description || 'N/A'}`, margin + 15, yPosition);
+          yPosition += lineHeight;
+          
+          // Expenses with different font styles
+          if (paymentItem.expenses.length > 0) {
+            doc.setFontSize(10);
+            doc.setTextColor(142, 68, 173); // Purple
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Expenses:`, margin + 15, yPosition);
+            yPosition += lineHeight;
+            
+            for (const expense of paymentItem.expenses) {
+              // Expense type header
+              doc.setFontSize(9);
+              doc.setTextColor(155, 89, 182); // Light purple
+              doc.setFont('helvetica', 'bold');
+              doc.text(`${expense.type.toUpperCase()}: ₹${expense.amount}`, margin + 20, yPosition);
+              yPosition += lineHeight;
+              
+              // Expense remarks in normal font
+              doc.setFontSize(8);
+              doc.setTextColor(44, 62, 80); // Dark blue-gray
+              doc.setFont('helvetica', 'normal');
+              doc.text(`Remarks: ${expense.remarks || 'No remarks'}`, margin + 25, yPosition);
+              yPosition += lineHeight;
+              
+              // Find and display expense images
+              const expenseImages = paymentItem.images.filter((img: any) => img.expense_id === expense.id);
+              if (expenseImages.length > 0) {
+                doc.setFontSize(8);
+                doc.setTextColor(52, 152, 219); // Blue
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Expense Images:`, margin + 25, yPosition);
+                yPosition += lineHeight;
+                
+                // Display expense images in smaller size
+                const expenseImageWidth = 60;
+                const expenseImageHeight = 45;
+                const expenseImageSpacing = 5;
+                
+                for (let i = 0; i < expenseImages.length; i++) {
+                  const expenseImageX = margin + 25 + (i * (expenseImageWidth + expenseImageSpacing));
+                  
+                  // Check if we need a new page for expense images
+                  if (yPosition + expenseImageHeight > pageHeight - 20) {
+                    doc.addPage();
+                    yPosition = 20;
+          }
+          
+                  if (expenseImages[i].url) {
+                    doc.addImage(expenseImages[i].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
+                  }
+                }
+                
+                yPosition += expenseImageHeight + 5;
+              }
+            }
+          }
+          
+          yPosition += 10;
+        }
+      }
+      
+      yPosition += 10;
+    }
+  }
+  
+  // Payment requests (not related to specific progress)
+  const unrelatedPayments = processedData.payments.filter((payment: any) => 
+    !payment.payment.related_progress_id
+  );
+  
+  if (unrelatedPayments.length > 0) {
+    doc.setFontSize(14);
+    doc.setTextColor(230, 126, 34); // Orange
+    doc.setFont('helvetica', 'bold');
+    doc.text('Other Payment Requests:', margin, yPosition);
+    yPosition += 10;
+    
+    for (const paymentItem of unrelatedPayments) {
+      // Check if we need a new page
+      if (yPosition > pageHeight - 120) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(52, 73, 94); // Dark blue
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Payment: ₹${paymentItem.payment.total_amount}`, margin, yPosition);
+      yPosition += lineHeight;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(44, 62, 80); // Dark blue-gray
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Status: ${paymentItem.payment.status}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Description: ${paymentItem.payment.description || 'N/A'}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Date: ${new Date(paymentItem.payment.created_at).toLocaleDateString()}`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      
+      // Expenses
+      if (paymentItem.expenses.length > 0) {
+        doc.setFontSize(11);
+        doc.setTextColor(142, 68, 173); // Purple
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Expenses:`, margin + 5, yPosition);
+        yPosition += lineHeight;
+        
+        for (const expense of paymentItem.expenses) {
+          // Expense type header
+          doc.setFontSize(10);
+          doc.setTextColor(155, 89, 182); // Light purple
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${expense.type.toUpperCase()}: ₹${expense.amount}`, margin + 10, yPosition);
+          yPosition += lineHeight;
+          
+          // Expense remarks in normal font
+          doc.setFontSize(9);
+          doc.setTextColor(44, 62, 80); // Dark blue-gray
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Remarks: ${expense.remarks || 'No remarks'}`, margin + 15, yPosition);
+          yPosition += lineHeight;
+          
+          // Find and display expense images
+          const expenseImages = paymentItem.images.filter((img: any) => img.expense_id === expense.id);
+          if (expenseImages.length > 0) {
+            doc.setFontSize(9);
+            doc.setTextColor(52, 152, 219); // Blue
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Expense Images:`, margin + 15, yPosition);
+            yPosition += lineHeight;
+            
+            // Display expense images in smaller size
+            const expenseImageWidth = 60;
+            const expenseImageHeight = 45;
+            const expenseImageSpacing = 5;
+            
+            for (let i = 0; i < expenseImages.length; i++) {
+              const expenseImageX = margin + 15 + (i * (expenseImageWidth + expenseImageSpacing));
+              
+              // Check if we need a new page for expense images
+              if (yPosition + expenseImageHeight > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+              }
+              
+              if (expenseImages[i].url) {
+                doc.addImage(expenseImages[i].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
+              }
+            }
+            
+            yPosition += expenseImageHeight + 5;
+          }
+        }
+      }
+      
+      yPosition += 10;
+    }
+  }
+  
+  // Add page numbers
+  const pageCount = doc.internal.pages.length - 1;
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(127, 140, 141); // Gray
+    doc.text(
+      `Page ${i} of ${pageCount}`,
+      doc.internal.pageSize.getWidth() / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: 'center' }
+    );
+  }
+  
+  // Save the PDF
+  const fileName = `project_${processedData.project.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
 };

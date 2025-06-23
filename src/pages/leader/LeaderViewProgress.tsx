@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { File } from 'lucide-react';
-import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
+import { getProjects, getProgressUpdates, getFinalSubmissions } from '@/lib/api/api-client';
 import { useParams } from 'react-router-dom';
 import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
 
@@ -38,11 +38,20 @@ const LeaderViewProgress = () => {
         setLoading(true);
         const allProjects = await getProjects();
         const userProjects = allProjects.filter(project => project.leader_id === Number(user?.id));
-        setProjects(userProjects);
+        // Filter out projects with completed final submission
+        const filteredProjects = [];
+        for (const project of userProjects) {
+          const finalSubs = await getFinalSubmissions(project.id);
+          const hasCompletedFinal = finalSubs.some(sub => sub.status === 'completed');
+          if (!hasCompletedFinal) {
+            filteredProjects.push(project);
+          }
+        }
+        setProjects(filteredProjects);
 
-        if (userProjects.length > 0) {
+        if (filteredProjects.length > 0) {
           // If projectId is provided in URL, use it; otherwise use the first project
-          const initialProjectId = projectId || userProjects[0].id.toString();
+          const initialProjectId = projectId || filteredProjects[0].id.toString();
           const updates = await getProgressUpdates(Number(initialProjectId));
           setProgressUpdates(updates);
           setSelectedProject(initialProjectId);
@@ -225,36 +234,81 @@ const LeaderViewProgress = () => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {update.image_ids && update.image_ids.length > 0 && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                          {update.image_ids.map((imageId, index) => {
-                            const imageKey = `${update.id}-${imageId}`;
-                            const imageUrl = imageUrls[imageKey];
-                            
-                            return imageUrl ? (
-                              <div key={`photo-${update.id}-${imageId}`} className="relative">
-                              <img
-                                  src={imageUrl}
-                                alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
-                                className="w-full h-48 object-cover rounded-lg"
-                                  onError={(e) => {
-                                    console.error(`Failed to load image ${imageId}`);
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                  }}
-                              />
-                            </div>
-                            ) : (
-                              <div key={`photo-${update.id}-${imageId}`} className="relative">
-                                <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                      {/* Vehicle and Driver Details */}
+                      {update.vehicle && (
+                        <div className="mb-2">
+                          <div className="font-semibold text-lg">{update.vehicle.model} <span className="text-sm text-muted-foreground">({update.vehicle.type})</span></div>
+                          {update.driver_external ? (
+                            <div className="text-base">{update.driver_external.name} <span className="italic text-xs">(External Driver)</span></div>
+                          ) : update.driver ? (
+                            <div className="text-base">{update.driver.name}</div>
+                          ) : null}
                         </div>
                       )}
+                      {/* Meter Images */}
+                      {(update.start_meter_image_id || update.end_meter_image_id) && (
+                        <div className="mb-2">
+                          {update.start_meter_image_id && (
+                            <div className="mb-1">
+                              <div className="text-base font-semibold">Start Meter</div>
+                              <img
+                                src={imageUrls[`${update.id}-${update.start_meter_image_id}`]}
+                                alt="Start Meter"
+                                className="w-32 h-20 object-cover rounded border"
+                                onError={e => (e.currentTarget.style.display = 'none')}
+                              />
+                            </div>
+                          )}
+                          {update.end_meter_image_id && (
+                            <div>
+                              <div className="text-base font-semibold">End Meter</div>
+                              <img
+                                src={imageUrls[`${update.id}-${update.end_meter_image_id}`]}
+                                alt="End Meter"
+                                className="w-32 h-20 object-cover rounded border"
+                                onError={e => (e.currentTarget.style.display = 'none')}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* Progress Images with subheading, excluding meter images */}
+                      {update.image_ids && update.image_ids.filter(id => id !== update.start_meter_image_id && id !== update.end_meter_image_id).length > 0 && (
+                        <div className="mt-4">
+                          <div className="font-semibold text-lg mb-2">Progress Images</div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {update.image_ids.filter(id => id !== update.start_meter_image_id && id !== update.end_meter_image_id).map((imageId, index) => {
+                              const imageKey = `${update.id}-${imageId}`;
+                              const imageUrl = imageUrls[imageKey];
+                              return imageUrl ? (
+                                <div key={`photo-${update.id}-${imageId}`} className="relative">
+                                  <img
+                                    src={imageUrl}
+                                    alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
+                                    className="w-full h-56 object-cover rounded-lg"
+                                    onError={(e) => {
+                                      console.error(`Failed to load image ${imageId}`);
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div key={`photo-${update.id}-${imageId}`} className="relative">
+                                  <div className="w-full h-56 bg-muted rounded-lg flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {/* Remark/Note with subheading */}
                       {update.description && (
-                        <p className="mt-4 text-muted-foreground">{update.description}</p>
+                        <div className="mt-4">
+                          <div className="font-semibold text-lg mb-2">Remark</div>
+                          <p className="text-base text-muted-foreground">{update.description}</p>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -277,6 +331,10 @@ const LeaderViewProgress = () => {
           
           {selectedProgress && (
             <div className="space-y-6">
+              {/* DEBUG: Show the full selectedProgress object */}
+              <pre className="bg-muted/40 p-2 rounded text-xs overflow-x-auto mb-4">
+                {JSON.stringify(selectedProgress, null, 2)}
+              </pre>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="font-semibold mb-2">{t('app.progress.details.workInfo')}</h3>
@@ -284,8 +342,48 @@ const LeaderViewProgress = () => {
                     <p><span className="font-medium">{t('app.progress.details.date')}:</span> {formatDate(selectedProgress.created_at)}</p>
                     <p><span className="font-medium">{t('app.progress.details.workCompleted')}:</span> {selectedProgress.completed_work} {t('app.progress.meters')}</p>
                     <p><span className="font-medium">{t('app.progress.details.completion')}:</span> {selectedProgress.completion_percentage}%</p>
+                    {/* Vehicle info */}
+                    {selectedProgress.vehicle && (
+                      <p><span className="font-medium">Vehicle:</span> {selectedProgress.vehicle.model} ({selectedProgress.vehicle.type})</p>
+                    )}
+                    {/* Driver info: show external if present, else regular */}
+                    {selectedProgress.driver_external ? (
+                      <p><span className="font-medium">Driver:</span> {selectedProgress.driver_external.name}, License Type: {selectedProgress.driver_external.license_type} <span className="italic">(External)</span></p>
+                    ) : selectedProgress.driver && (
+                      <p><span className="font-medium">Driver:</span> {selectedProgress.driver.name}, License Type: {selectedProgress.driver.license_type}</p>
+                    )}
                   </div>
                 </div>
+                {/* Meter Images */}
+                {(selectedProgress.start_meter_image_id || selectedProgress.end_meter_image_id) && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Meter Images</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {selectedProgress.start_meter_image_id && (
+                        <div>
+                          <div className="font-bold mb-1">Start Meter</div>
+                          <img
+                            src={imageUrls[`${selectedProgress.id}-${selectedProgress.start_meter_image_id}`]}
+                            alt="Start Meter"
+                            className="w-full object-cover rounded-md"
+                            onError={e => (e.currentTarget.style.display = 'none')}
+                          />
+                        </div>
+                      )}
+                      {selectedProgress.end_meter_image_id && (
+                        <div>
+                          <div className="font-bold mb-1">End Meter</div>
+                          <img
+                            src={imageUrls[`${selectedProgress.id}-${selectedProgress.end_meter_image_id}`]}
+                            alt="End Meter"
+                            className="w-full object-cover rounded-md"
+                            onError={e => (e.currentTarget.style.display = 'none')}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {selectedProgress.description && (

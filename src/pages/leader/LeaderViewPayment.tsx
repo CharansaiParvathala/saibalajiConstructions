@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Project } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
-import { getPaymentRequests, getProjects } from '@/lib/api/api-client';
+import { getPaymentRequests, getProjects, getPaymentRequestHistory } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
 import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
 
@@ -20,6 +20,7 @@ const LeaderViewPayment = () => {
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
   const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
   const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+  const [checkerNotes, setCheckerNotes] = useState<{ [paymentId: string]: string | null }>({});
   
   useEffect(() => {
     if (user) {
@@ -52,6 +53,19 @@ const LeaderViewPayment = () => {
           if (projectsWithPayments.length > 0 && !selectedProject) {
         setSelectedProject('all');
       }
+          
+          // Fetch checker notes for each payment
+          const notes: { [paymentId: string]: string | null } = {};
+          for (const payment of payments) {
+            try {
+              const history = await getPaymentRequestHistory(Number(payment.id));
+              const latestNote = history.find((h: any) => h.comment && h.comment.trim());
+              notes[payment.id] = latestNote ? latestNote.comment : null;
+            } catch {
+              notes[payment.id] = null;
+            }
+          }
+          setCheckerNotes(notes);
           
           // Load images for all payment requests
           await loadImagesForPayments(payments);
@@ -203,6 +217,11 @@ const LeaderViewPayment = () => {
                         <div className="text-right">
                           <div className="font-medium">₹ {Number(payment.total_amount || 0).toFixed(2)}</div>
                   <div className="mt-1">{getStatusBadge(payment.status)}</div>
+                          {(checkerNotes[payment.id] || payment.checkerNotes || payment.comment) && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Checker Notes: {checkerNotes[payment.id] || payment.checkerNotes || payment.comment}
+                            </div>
+                          )}
                         </div>
                 </div>
                 

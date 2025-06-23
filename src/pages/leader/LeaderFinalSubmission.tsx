@@ -46,17 +46,29 @@ const LeaderFinalSubmission = () => {
     try {
       setIsLoading(true);
       const allProjects = await getProjects();
-      // Filter only completed projects (100% work done)
+      // Filter only completed projects (100% work done or at least 95% complete)
       const completedProjects = allProjects.filter(project => 
-        project.completed_work >= project.total_work
+        project.completed_work >= project.total_work || (project.completed_work / project.total_work) >= 0.95
       );
-      setProjects(completedProjects);
       
-      if (completedProjects.length > 0) {
-        setSelectedProject(completedProjects[0].id);
+      // Filter out projects that already have completed final submissions
+      const availableProjects = [];
+      for (const project of completedProjects) {
+        const submissions = await getFinalSubmissions(project.id);
+        const hasCompletedSubmission = submissions.some(sub => sub.status === 'completed');
+        
+        if (!hasCompletedSubmission) {
+          availableProjects.push(project);
+        }
+      }
+      
+      setProjects(availableProjects);
+      
+      if (availableProjects.length > 0) {
+        setSelectedProject(availableProjects[0].id);
         
         // Check for active timers across all completed projects
-        await checkForActiveTimersAcrossProjects(completedProjects);
+        await checkForActiveTimersAcrossProjects(availableProjects);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
@@ -81,6 +93,17 @@ const LeaderFinalSubmission = () => {
           // Get current timer status
           const timerStatus = await getTimerStatus(activeSubmission.id);
           setTimeRemaining(timerStatus.timeRemaining);
+          
+          // Check if submission was auto-completed
+          if (timerStatus.autoCompleted) {
+            setTimerActive(false);
+            toast.success(`Timer expired and submission auto-completed with ${timerStatus.imageCount} images`);
+            // Redirect to dashboard after short delay
+            setTimeout(() => {
+              navigate('/leader');
+            }, 2000);
+            return;
+          }
           
           // Load existing images for this submission
           await loadSubmissionImages(activeSubmission.id);
@@ -124,6 +147,26 @@ const LeaderFinalSubmission = () => {
             setTimerActive(false);
             setTimeRemaining(0);
             toast.error("Time's up! You can no longer upload completion photos.");
+            // Auto-complete final submission if not already completed
+            try {
+              await completeFinalSubmission(currentSubmissionId, notes);
+              toast.success("Final project submission auto-completed after timer expired.");
+              setTimeout(() => {
+                navigate('/leader');
+              }, 1500);
+            } catch (error) {
+              // Ignore if already completed
+            }
+            return;
+          }
+          
+          if (timerStatus.status === 'completed' && timerStatus.autoCompleted) {
+            setTimerActive(false);
+            setTimeRemaining(0);
+            toast.success(`Timer expired and submission auto-completed with ${timerStatus.imageCount} images`);
+            setTimeout(() => {
+              navigate('/leader');
+            }, 2000);
             return;
           }
           
@@ -132,6 +175,16 @@ const LeaderFinalSubmission = () => {
           if (timerStatus.timeRemaining <= 0) {
             setTimerActive(false);
             toast.error("Time's up! You can no longer upload completion photos.");
+            // Auto-complete final submission if not already completed
+            try {
+              await completeFinalSubmission(currentSubmissionId, notes);
+              toast.success("Final project submission auto-completed after timer expired.");
+              setTimeout(() => {
+                navigate('/leader');
+              }, 1500);
+            } catch (error) {
+              // Ignore if already completed
+            }
           }
         } catch (error) {
           console.error('Error checking timer status:', error);
@@ -142,7 +195,7 @@ const LeaderFinalSubmission = () => {
     return () => {
       clearInterval(timer);
     };
-  }, [timerActive, currentSubmissionId]);
+  }, [timerActive, currentSubmissionId, navigate, notes]);
 
   const startCompletionTimer = async () => {
     if (!selectedProject || !user) {
@@ -169,39 +222,48 @@ const LeaderFinalSubmission = () => {
       return;
     }
 
+    // Check submission status before uploading
+    try {
+      const timerStatus = await getTimerStatus(currentSubmissionId);
+      if (timerStatus.status === 'expired') {
+        setTimerActive(false);
+        setTimeRemaining(0);
+        toast.error("Timer has expired. You can no longer upload images.");
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking timer status:', error);
+      toast.error('Error checking timer status. Please try again.');
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.multiple = true;
     input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
-      if (files) {
+      if (files && files.length > 0) {
         try {
-          const imagePromises = Array.from(files).map(file => {
-            return new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = reader.result as string;
-                // Convert to base64 without data URL prefix
-                const base64 = result.split(',')[1];
-                resolve(base64);
-              };
-              reader.readAsDataURL(file);
-            });
-          });
-
-          const base64Images = await Promise.all(imagePromises);
-          
-          // Upload images to server
-          const uploadResponse = await uploadFinalSubmissionImages(currentSubmissionId, base64Images);
-          
+          // Send files directly to the API
+          const fileArray = Array.from(files);
+          const uploadResponse = await uploadFinalSubmissionImages(currentSubmissionId, fileArray);
           // Reload images from server to get the updated list
           await loadSubmissionImages(currentSubmissionId);
-
           toast.success(`Uploaded ${uploadResponse.uploadedCount} images successfully`);
         } catch (error) {
           console.error('Error uploading images:', error);
-          toast.error('Failed to upload images. Please try again.');
+          let errorMessage = 'Failed to upload images. Please try again.';
+          if (error instanceof Error) {
+            if (error.message.includes('Timer has expired')) {
+              errorMessage = 'Timer has expired. You can no longer upload images.';
+            } else if (error.message.includes('No active submission found')) {
+              errorMessage = 'No active submission found. Please start the timer again.';
+            } else if (error.message.includes('Failed to upload images')) {
+              errorMessage = 'Server error while uploading images. Please try again.';
+            }
+          }
+          toast.error(errorMessage);
         }
       }
     };

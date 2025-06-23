@@ -115,6 +115,10 @@ export class MemoryDatabase implements Database {
     await this.storage.deleteDriver(id);
   }
 
+  async getDriverById(id: string): Promise<Driver | undefined> {
+    return this.storage.getDriverById(id);
+  }
+
   // Backup Links
   async getAllBackupLinks(): Promise<BackupLink[]> {
     return this.storage.getAllBackupLinks();

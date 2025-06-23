@@ -4,6 +4,7 @@ import { MemoryDatabase } from './database/memory-database';
 import { Database } from './database/types';
 import { createAuthRouter } from './routes/auth';
 import { StorageService } from './services/storage-service';
+import { uploadMemory } from './services/file-upload';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -203,12 +204,50 @@ app.get('/api/drivers', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/drivers', async (req: Request, res: Response) => {
+// Add a new driver (admin, with license image upload)
+app.post('/api/drivers', uploadMemory.single('license_image'), async (req: Request, res: Response) => {
   try {
-    const driver = await db.createDriver(req.body);
+    const { name, mobile_number, license_number, license_type, project_id } = req.body;
+    const license_file = req.file;
+    // Helper to get extension from originalname
+    function getExtension(filename) {
+      return filename ? filename.split('.').pop() : '';
+    }
+    const license_image_name = license_file ? `${name}_license.${getExtension(license_file.originalname)}` : null;
+    const license_image_mime = license_file ? license_file.mimetype : null;
+    const license_image = license_file ? license_file.buffer : null;
+    if (!name || !mobile_number || !license_number || !license_type || !project_id) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    const driverData = {
+      name,
+      mobile_number,
+      license_number,
+      license_type,
+      license_image,
+      license_image_name,
+      license_image_mime,
+      project_id
+    };
+    const driver = await db.createDriver(driverData);
     res.status(201).json(driver);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create driver' });
+  }
+});
+
+// Serve license image for a driver
+app.get('/api/drivers/:id/license_image', async (req: Request, res: Response) => {
+  try {
+    const driver = await db.getDriverById(req.params.id);
+    if (!driver || !driver.license_image) {
+      return res.status(404).send('Not found');
+    }
+    res.set('Content-Type', driver.license_image_mime || 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename="${driver.license_image_name || 'license_image'}"`);
+    res.send(driver.license_image);
+  } catch (error) {
+    res.status(500).send('Error retrieving image');
   }
 });
 

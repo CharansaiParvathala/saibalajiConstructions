@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getPaymentRequests } from '@/lib/api/api-client';
+import { getPaymentRequests, getPaymentRequestHistory } from '@/lib/api/api-client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getStatusBadge } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
 import { useLanguage } from '@/context/language-context';
 import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
@@ -18,6 +17,24 @@ const LeaderPaymentDetails = () => {
   const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
   const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+  const [checkerNote, setCheckerNote] = useState<string | null>(null);
+
+  const getStatusBadge = (status: string) => {
+    switch(status) {
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200">{t('app.payment.status.pending')}</Badge>;
+      case 'approved':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-200">{t('app.payment.status.approved')}</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-800 border-red-300 hover:bg-red-200">{t('app.payment.status.rejected')}</Badge>;
+      case 'scheduled':
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-200">{t('app.payment.status.scheduled')}</Badge>;
+      case 'paid':
+        return <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200">{t('app.payment.status.paid')}</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
 
   useEffect(() => {
     const fetchPayment = async () => {
@@ -30,6 +47,17 @@ const LeaderPaymentDetails = () => {
         const found = payments.find((p: any) => String(p.id) === String(id));
         setPayment(found || null);
         if (!found) setError('Payment not found');
+        
+        // Fetch payment request history for checker notes
+        if (found && found.id) {
+          try {
+            const history = await getPaymentRequestHistory(Number(found.id));
+            const latestNote = history.find((h: any) => h.comment && h.comment.trim());
+            setCheckerNote(latestNote ? latestNote.comment : null);
+          } catch (e) {
+            setCheckerNote(null);
+          }
+        }
         
         // Load images for this payment and its expenses
         if (found) {
@@ -125,9 +153,13 @@ const LeaderPaymentDetails = () => {
                   <div className="text-2xl font-bold">₹ {Number(payment.total_amount || 0).toFixed(2)}</div>
                   <div className="text-sm text-muted-foreground">Total Amount</div>
                   <div className="mt-2">
-                    <Badge variant={getStatusBadge(payment.status).variant as any}>
-                      {getStatusBadge(payment.status).label}
-                    </Badge>
+                    {getStatusBadge(payment.status)}
+                    {checkerNote && (
+                      <div className="mt-2 mx-auto max-w-xl p-3 border rounded text-sm whitespace-pre-line break-words text-center bg-background border-border text-foreground dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100">
+                        <strong>Checker Notes:</strong>
+                        <div>{checkerNote}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -156,9 +188,9 @@ const LeaderPaymentDetails = () => {
                     <div className="space-y-4">
                       {/* Remarks */}
                       {expense.remarks && (
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">Remarks</h4>
-                          <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">{expense.remarks}</p>
+                        <div className="bg-muted p-3 rounded-md text-sm text-foreground dark:bg-neutral-800 dark:text-neutral-200">
+                          <h4 className="text-sm font-medium mb-2">Remarks</h4>
+                          <p>{expense.remarks}</p>
                         </div>
                       )}
 

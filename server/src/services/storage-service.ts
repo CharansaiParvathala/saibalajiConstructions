@@ -1,4 +1,4 @@
-import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../../src/lib/types';
+import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../../../src/lib/types';
 
 export class StorageService {
   private static instance: StorageService;
@@ -236,6 +236,11 @@ export class StorageService {
 
   async deleteDriver(id: string): Promise<void> {
     await this.deleteData<Driver>('drivers', id);
+  }
+
+  async getDriverById(id: string): Promise<Driver | undefined> {
+    const drivers = await this.getData<Driver>('drivers');
+    return drivers.find(driver => driver.id === id);
   }
 
   // Backup Links

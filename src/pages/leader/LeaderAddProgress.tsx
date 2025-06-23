@@ -8,12 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/sonner';
 import { Textarea } from '@/components/ui/textarea';
 import { useNavigate } from 'react-router-dom';
-import { Project, Vehicle, PhotoWithMetadata, ProgressUpdate } from '@/lib/types';
+import { Project, Vehicle, PhotoWithMetadata, ProgressUpdate, Driver } from '@/lib/types';
 import { Progress } from '@/components/ui/progress';
 import { Clock, Percent, Upload, CheckCircle, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from '@/context/language-context';
-import { getProjects, addProgress, updateProject } from '@/lib/api/api-client';
+import { getProjects, addProgress, updateProject, getFinalSubmissions, getVehicles, getDrivers } from '@/lib/api/api-client';
 
 // Simple component to display progress photos
 const ImageDisplay = ({ images, onRemove }: { images: PhotoWithMetadata[], onRemove: (index: number) => void }) => {
@@ -61,24 +61,42 @@ const LeaderAddProgress = () => {
   const [timeTaken, setTimeTaken] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [progressPercentage, setProgressPercentage] = useState<number>(0);
+  const [vehicleUsed, setVehicleUsed] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [isExternalDriver, setIsExternalDriver] = useState(false);
+  const [externalDriverName, setExternalDriverName] = useState('');
+  const [externalDriverLicenseType, setExternalDriverLicenseType] = useState('');
+  const [externalDriverMobileNumber, setExternalDriverMobileNumber] = useState('');
+  const [startMeterImage, setStartMeterImage] = useState<File | null>(null);
+  const [endMeterImage, setEndMeterImage] = useState<File | null>(null);
   
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const allProjects = await getProjects();
-        console.log('Fetched projects:', allProjects);
-    if (user) {
+        if (user) {
           // Filter projects where the user is the leader
           const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
-          console.log('User projects:', userProjects);
-      setProjects(userProjects);
+          // Further filter out projects that are completed or have a completed final submission
+          const filteredProjects = [];
+          for (const project of userProjects) {
+            if (project.completed_work >= project.total_work) continue;
+            const finalSubs = await getFinalSubmissions(project.id);
+            const hasCompletedFinal = finalSubs.some(sub => sub.status === 'completed');
+            if (!hasCompletedFinal) {
+              filteredProjects.push(project);
+            }
+          }
+          setProjects(filteredProjects);
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
         toast.error('Failed to fetch projects');
-    }
+      }
     };
-
     fetchProjects();
   }, [user]);
   
@@ -105,6 +123,13 @@ const LeaderAddProgress = () => {
       }
     }
   }, [selectedProject, completedWork, projects]);
+  
+  useEffect(() => {
+    if (vehicleUsed) {
+      getVehicles().then(setVehicles).catch(() => setVehicles([]));
+      getDrivers().then(setDrivers).catch(() => setDrivers([]));
+    }
+  }, [vehicleUsed]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -165,11 +190,22 @@ const LeaderAddProgress = () => {
         return;
       }
 
+      const selectedVehicle = vehicles.find(v => v.id.toString() === selectedVehicleId) || null;
+      const selectedDriver = drivers.find(d => d.id.toString() === selectedDriverId) || null;
+
       await addProgress({
         projectId: selectedProject.id,
         completedWork: completedWorkNum,
         description,
-        images: selectedImages
+        images: selectedImages,
+        vehicle_id: vehicleUsed && selectedVehicle ? Number(selectedVehicle.id) : undefined,
+        driver_id: vehicleUsed && !isExternalDriver && selectedDriver ? Number(selectedDriver.id) : undefined,
+        is_external_driver: vehicleUsed ? isExternalDriver : undefined,
+        external_driver_name: vehicleUsed && isExternalDriver ? externalDriverName : undefined,
+        external_driver_license_type: vehicleUsed && isExternalDriver ? externalDriverLicenseType : undefined,
+        external_driver_mobile_number: vehicleUsed && isExternalDriver ? externalDriverMobileNumber : undefined,
+        start_meter_image: vehicleUsed && selectedVehicle && startMeterImage ? startMeterImage : undefined,
+        end_meter_image: vehicleUsed && selectedVehicle && endMeterImage ? endMeterImage : undefined,
       });
 
       // Reset form
@@ -197,6 +233,16 @@ const LeaderAddProgress = () => {
     }
   };
   
+  const handleStartMeterImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) setStartMeterImage(e.target.files[0]);
+  };
+  const handleEndMeterImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) setEndMeterImage(e.target.files[0]);
+  };
+
+  const selectedVehicle = vehicles.find(v => v.id.toString() === selectedVehicleId) || null;
+  const selectedDriver = drivers.find(d => d.id.toString() === selectedDriverId) || null;
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.progress.add.title')}</h1>
@@ -316,6 +362,68 @@ const LeaderAddProgress = () => {
                   </div>
                 </div>
         </div>
+
+              <div className="w-full flex items-center gap-2">
+                <input type="checkbox" id="vehicleUsed" checked={vehicleUsed} onChange={e => setVehicleUsed(e.target.checked)} />
+                <Label htmlFor="vehicleUsed">Vehicle Used</Label>
+              </div>
+              {vehicleUsed && (
+                <div className="space-y-4">
+                  <div className="w-full">
+                    <Label htmlFor="vehicle">Select Vehicle</Label>
+                    <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select vehicle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vehicles.map(vehicle => (
+                          <SelectItem key={vehicle.id} value={vehicle.id.toString()}>{vehicle.model}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-full">
+                    <Label htmlFor="driver">Select Driver</Label>
+                    <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select driver" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {drivers.map(driver => (
+                          <SelectItem key={driver.id} value={driver.id.toString()}>{driver.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="isExternalDriver"
+                        checked={isExternalDriver}
+                        onChange={e => {
+                          setIsExternalDriver(e.target.checked);
+                          if (e.target.checked) setSelectedDriverId('');
+                        }}
+                      />
+                      <Label htmlFor="isExternalDriver">External Driver</Label>
+                    </div>
+                    {isExternalDriver && (
+                      <div className="space-y-2 mt-2">
+                        <Input placeholder="Driver Name" value={externalDriverName} onChange={e => setExternalDriverName(e.target.value)} required />
+                        <Input placeholder="License Type" value={externalDriverLicenseType} onChange={e => setExternalDriverLicenseType(e.target.value)} required />
+                        <Input placeholder="Mobile Number" value={externalDriverMobileNumber} onChange={e => setExternalDriverMobileNumber(e.target.value)} required />
+                      </div>
+                    )}
+                  </div>
+                  {selectedVehicle && (
+                    <div className="w-full flex flex-col gap-2">
+                      <Label>Starting Point Meter Image</Label>
+                      <Input type="file" accept="image/*" onChange={handleStartMeterImage} />
+                      <Label>End Meter Image</Label>
+                      <Input type="file" accept="image/*" onChange={handleEndMeterImage} />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Button 
           type="submit"

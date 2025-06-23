@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { getProjects, getProgressUpdates, createPaymentRequest } from '@/lib/api/api-client';
+import { getProjects, getProgressUpdates, createPaymentRequest, getPaymentRequests } from '@/lib/api/api-client';
 
 const LeaderRequestPayment = () => {
   const { t } = useLanguage();
@@ -20,6 +20,7 @@ const LeaderRequestPayment = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const [filteredProgressUpdates, setFilteredProgressUpdates] = useState<ProgressUpdate[]>([]);
   const [selectedProgress, setSelectedProgress] = useState<string>('');
   const [purposes, setPurposes] = useState<PaymentPurpose[]>([
     { type: "food", amount: 0, images: [], remarks: "" }
@@ -41,8 +42,14 @@ const LeaderRequestPayment = () => {
 
           if (userProjects.length > 0) {
             const updates = await getProgressUpdates(Number(userProjects[0].id));
-          setProgressUpdates(updates);
+            setProgressUpdates(updates);
             setSelectedProject(userProjects[0].id.toString());
+            // Filter out progress updates that already have a payment request
+            const allPayments = await getPaymentRequests(Number(user.id));
+            const paidProgressIds = new Set(
+              allPayments.map((pr: any) => pr.progress_id).filter((id: any) => id != null)
+            );
+            setFilteredProgressUpdates(updates.filter(u => !paidProgressIds.has(u.id)));
           }
         }
       } catch (error) {
@@ -245,10 +252,15 @@ const LeaderRequestPayment = () => {
       if (project) {
         setSelectedProject(projectId);
         const updates = await getProgressUpdates(Number(projectId));
-        console.log("Fetched progress updates:", updates);
         setProgressUpdates(updates);
         // Reset selected progress when project changes
         setSelectedProgress(''); 
+        // Filter out progress updates that already have a payment request
+        const allPayments = await getPaymentRequests(Number(user?.id));
+        const paidProgressIds = new Set(
+          allPayments.map((pr: any) => pr.progress_id).filter((id: any) => id != null)
+        );
+        setFilteredProgressUpdates(updates.filter(u => !paidProgressIds.has(u.id)));
       }
     } catch (error) {
       console.error('Error loading project updates:', error);
@@ -299,7 +311,7 @@ const LeaderRequestPayment = () => {
                   <SelectValue placeholder={t("app.paymentRequest.selectProgressUpdate")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {progressUpdates.map((update) => {
+                  {filteredProgressUpdates.map((update) => {
                     const displayText = `${formatDate(update.created_at)} - ${update.completed_work}m completed (${update.status})`;
                     return (
                     <SelectItem 

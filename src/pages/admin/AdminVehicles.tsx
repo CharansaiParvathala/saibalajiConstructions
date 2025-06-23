@@ -6,61 +6,73 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
-import { getAllVehicles, createVehicle, updateVehicle, deleteVehicle } from '@/lib/storage';
+import { getVehicles, createVehicle } from '@/lib/api/api-client';
 import { Vehicle } from '@/lib/types';
 
+const VEHICLE_TYPES = [
+  { value: 'truck', label: 'Truck' },
+  { value: 'tractor', label: 'Tractor' },
+  { value: 'jcb', label: 'JCB' },
+  { value: 'other', label: 'Other' },
+];
+
 const AdminVehicles = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   
+  const [type, setType] = useState('truck');
   const [model, setModel] = useState('');
-  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [rcImage, setRcImage] = useState<File | null>(null);
+  const [rcExpiry, setRcExpiry] = useState('');
+  const [pollutionCertImage, setPollutionCertImage] = useState<File | null>(null);
   const [pollutionCertExpiry, setPollutionCertExpiry] = useState('');
+  const [fitnessCertImage, setFitnessCertImage] = useState<File | null>(null);
   const [fitnessCertExpiry, setFitnessCertExpiry] = useState('');
-  const [additionalDetails, setAdditionalDetails] = useState('');
   
   // Load vehicles on mount
   useEffect(() => {
     loadVehicles();
   }, []);
   
-  const loadVehicles = () => {
-    const allVehicles = getAllVehicles();
-    setVehicles(allVehicles);
+  const loadVehicles = async () => {
+    try {
+      const data = await getVehicles();
+      setVehicles(data);
+    } catch (error) {
+      toast.error('Failed to fetch vehicles');
+    }
   };
   
-  const handleAddVehicle = () => {
-    if (!model || !registrationNumber || !pollutionCertExpiry || !fitnessCertExpiry) {
-      toast.error("Please fill all required fields");
+  const handleAddVehicle = async () => {
+    if (!type || !model) {
+      toast.error('Please fill all required fields');
       return;
     }
-    
     try {
-      const newVehicle = createVehicle({
+      await createVehicle({
+        type,
         model,
-        registrationNumber,
-        pollutionCertExpiry,
-        fitnessCertExpiry,
-        additionalDetails
+        rc_image: rcImage || undefined,
+        rc_expiry: rcExpiry,
+        pollution_cert_image: pollutionCertImage || undefined,
+        pollution_cert_expiry: pollutionCertExpiry,
+        fitness_cert_image: fitnessCertImage || undefined,
+        fitness_cert_expiry: fitnessCertExpiry,
       });
-      
-      if (newVehicle) {
-        toast.success("Vehicle added successfully");
+      toast.success('Vehicle added successfully');
         setShowAddDialog(false);
         resetForm();
         loadVehicles();
-      }
-    } catch (error) {
-      console.error("Error adding vehicle:", error);
-      toast.error("Failed to add vehicle");
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to add vehicle');
     }
   };
   
   const handleEditVehicle = () => {
-    if (!selectedVehicle || !model || !registrationNumber || !pollutionCertExpiry || !fitnessCertExpiry) {
+    if (!selectedVehicle || !model || !pollutionCertExpiry || !fitnessCertExpiry) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -69,10 +81,8 @@ const AdminVehicles = () => {
       updateVehicle({
         ...selectedVehicle,
         model,
-        registrationNumber,
         pollutionCertExpiry,
         fitnessCertExpiry,
-        additionalDetails
       });
       
       toast.success("Vehicle updated successfully");
@@ -85,31 +95,29 @@ const AdminVehicles = () => {
     }
   };
   
-  const handleDeleteVehicle = () => {
-    if (!selectedVehicle) {
-      toast.error("No vehicle selected");
-      return;
-    }
-    
+  const handleDeleteVehicle = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this vehicle?')) return;
     try {
-      deleteVehicle(selectedVehicle.id);
-      toast.success("Vehicle deleted successfully");
-      setShowDeleteDialog(false);
-      setSelectedVehicle(null);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/auth/vehicles/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to delete vehicle');
+      toast.success('Vehicle deleted successfully');
       loadVehicles();
     } catch (error) {
-      console.error("Error deleting vehicle:", error);
-      toast.error("Failed to delete vehicle");
+      toast.error('Failed to delete vehicle');
     }
   };
   
   const openEditDialog = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setModel(vehicle.model);
-    setRegistrationNumber(vehicle.registrationNumber);
     setPollutionCertExpiry(vehicle.pollutionCertExpiry);
     setFitnessCertExpiry(vehicle.fitnessCertExpiry);
-    setAdditionalDetails(vehicle.additionalDetails);
     setShowEditDialog(true);
   };
   
@@ -119,12 +127,24 @@ const AdminVehicles = () => {
   };
   
   const resetForm = () => {
+    setType('truck');
     setModel('');
-    setRegistrationNumber('');
+    setRcImage(null);
+    setRcExpiry('');
+    setPollutionCertImage(null);
     setPollutionCertExpiry('');
+    setFitnessCertImage(null);
     setFitnessCertExpiry('');
-    setAdditionalDetails('');
     setSelectedVehicle(null);
+  };
+
+  const downloadBlob = (blob: any, filename: string) => {
+    const url = URL.createObjectURL(new Blob([blob]));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -149,23 +169,69 @@ const AdminVehicles = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RC Expiry</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pollution Cert Expiry</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fitness Cert Expiry</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RC Image</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pollution Cert Image</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fitness Cert Image</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {vehicles.map(vehicle => (
                     <tr key={vehicle.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vehicle.model}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vehicle.registrationNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(vehicle.pollutionCertExpiry).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(vehicle.fitnessCertExpiry).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Button variant="secondary" size="sm" onClick={() => openEditDialog(vehicle)}>Edit</Button>
-                        <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(vehicle)}>Delete</Button>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vehicle.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{vehicle.model}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vehicle.rc_expiry ? new Date(vehicle.rc_expiry).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vehicle.pollution_cert_expiry ? new Date(vehicle.pollution_cert_expiry).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{vehicle.fitness_cert_expiry ? new Date(vehicle.fitness_cert_expiry).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {vehicle.rc_image && (
+                          <a
+                            href={`http://localhost:3001/api/auth/vehicles/${vehicle.id}/rc_image`}
+                            download={vehicle.rc_image_name || `rc_${vehicle.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {vehicle.pollution_cert_image && (
+                          <a
+                            href={`http://localhost:3001/api/auth/vehicles/${vehicle.id}/pollution_cert_image`}
+                            download={vehicle.pollution_cert_image_name || `pollution_cert_${vehicle.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {vehicle.fitness_cert_image && (
+                          <a
+                            href={`http://localhost:3001/api/auth/vehicles/${vehicle.id}/fitness_cert_image`}
+                            download={vehicle.fitness_cert_image_name || `fitness_cert_${vehicle.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteVehicle(vehicle.id)}
+                        >
+                          Delete
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -188,24 +254,38 @@ const AdminVehicles = () => {
           
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="type" className="text-right">Type</Label>
+              <select id="type" value={type} onChange={e => setType(e.target.value)} className="col-span-3 border rounded px-2 py-1">
+                {VEHICLE_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="model" className="text-right">Model</Label>
-              <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} className="col-span-3" />
+              <Input id="model" value={model} onChange={e => setModel(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="registrationNumber" className="text-right">Registration Number</Label>
-              <Input id="registrationNumber" value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="col-span-3" />
+              <Label htmlFor="rc_image" className="text-right">RC Image</Label>
+              <Input id="rc_image" type="file" accept="image/*" onChange={e => setRcImage(e.target.files?.[0] || null)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pollutionCertExpiry" className="text-right">Pollution Cert Expiry</Label>
-              <Input type="date" id="pollutionCertExpiry" value={pollutionCertExpiry} onChange={(e) => setPollutionCertExpiry(e.target.value)} className="col-span-3" />
+              <Label htmlFor="rc_expiry" className="text-right">RC Expiry</Label>
+              <Input id="rc_expiry" type="date" value={rcExpiry} onChange={e => setRcExpiry(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fitnessCertExpiry" className="text-right">Fitness Cert Expiry</Label>
-              <Input type="date" id="fitnessCertExpiry" value={fitnessCertExpiry} onChange={(e) => setFitnessCertExpiry(e.target.value)} className="col-span-3" />
+              <Label htmlFor="pollution_cert_image" className="text-right">Pollution Cert Image</Label>
+              <Input id="pollution_cert_image" type="file" accept="image/*" onChange={e => setPollutionCertImage(e.target.files?.[0] || null)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="additionalDetails" className="text-right">Additional Details</Label>
-              <Textarea id="additionalDetails" value={additionalDetails} onChange={(e) => setAdditionalDetails(e.target.value)} className="col-span-3" />
+              <Label htmlFor="pollution_cert_expiry" className="text-right">Pollution Cert Expiry</Label>
+              <Input id="pollution_cert_expiry" type="date" value={pollutionCertExpiry} onChange={e => setPollutionCertExpiry(e.target.value)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="fitness_cert_image" className="text-right">Fitness Cert Image</Label>
+              <Input id="fitness_cert_image" type="file" accept="image/*" onChange={e => setFitnessCertImage(e.target.files?.[0] || null)} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="fitness_cert_expiry" className="text-right">Fitness Cert Expiry</Label>
+              <Input id="fitness_cert_expiry" type="date" value={fitnessCertExpiry} onChange={e => setFitnessCertExpiry(e.target.value)} className="col-span-3" />
             </div>
           </div>
           
@@ -236,20 +316,12 @@ const AdminVehicles = () => {
               <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="registrationNumber" className="text-right">Registration Number</Label>
-              <Input id="registrationNumber" value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="pollutionCertExpiry" className="text-right">Pollution Cert Expiry</Label>
               <Input type="date" id="pollutionCertExpiry" value={pollutionCertExpiry} onChange={(e) => setPollutionCertExpiry(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="fitnessCertExpiry" className="text-right">Fitness Cert Expiry</Label>
               <Input type="date" id="fitnessCertExpiry" value={fitnessCertExpiry} onChange={(e) => setFitnessCertExpiry(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="additionalDetails" className="text-right">Additional Details</Label>
-              <Textarea id="additionalDetails" value={additionalDetails} onChange={(e) => setAdditionalDetails(e.target.value)} className="col-span-3" />
             </div>
           </div>
           
@@ -278,7 +350,7 @@ const AdminVehicles = () => {
             <Button variant="secondary" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteVehicle}>
+            <Button variant="destructive" onClick={() => handleDeleteVehicle(selectedVehicle?.id || 0)}>
               Delete Vehicle
             </Button>
           </DialogFooter>

@@ -3,42 +3,36 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, FileOutput, Printer, FilePlus, Image } from 'lucide-react';
+import { FileOutput, Image } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
+import { getProjects, getProjectExportData } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
-import { 
-  exportToPDF, 
-  generateProjectPdfReport, 
-  exportProjectsToPDF, 
-  exportPaymentsToPDF 
-} from '@/utils/pdf-export';
-import { exportToDocx, generateProjectReport } from '@/utils/docx-export';
+import { exportProjectDataToPDF } from '@/utils/pdf-export';
 import { exportProjectImages } from '@/utils/image-export';
-import { Project, ProgressUpdate } from '@/lib/types';
+import { Project } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { exportFinalSubmissionImages } from '../../utils/final-submission-image-export';
 
 const AdminExportData = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   
-  const [exportType, setExportType] = useState('projects');
   const [loading, setLoading] = useState({
-    word: false,
-    pdf: false,
-    report: false,
     image: false,
+    projectPdf: false,
+    finalImages: false,
     initial: true
   });
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProjectForExport, setSelectedProjectForExport] = useState<Project | null>(null);
   const [aspectRatio, setAspectRatio] = useState<string>('original');
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const [customAspectRatio, setCustomAspectRatio] = useState({ width: '', height: '' });
 
   // Redirect if not admin
   useEffect(() => {
@@ -47,16 +41,12 @@ const AdminExportData = () => {
     }
   }, [user, navigate]);
 
-  // Load projects on mount
+  // Load data on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [allProjects, allUpdates] = await Promise.all([
-          getProjects(),
-          getProgressUpdates()
-        ]);
+        const allProjects = await getProjects();
         setProjects(allProjects);
-        setProgressUpdates(allUpdates);
       } catch (error) {
         console.error('Error loading data:', error);
         toast.error(t("common.error"));
@@ -65,79 +55,30 @@ const AdminExportData = () => {
       }
     };
 
-    loadData();
-  }, [t]);
-
-  const handleExportDocx = async () => {
-    try {
-      setLoading(prev => ({ ...prev, word: true }));
-      toast.info(t("common.generating"));
-      
-      // Prepare project data for Word document
-      const projectData = projects.map(project => ({
-        id: project.id || '',
-        name: project.name || '',
-        leader: project.leaderId || 'N/A',
-        completedWork: project.completedWork || 0,
-        totalWork: project.totalWork || 0,
-        progress: `${Math.round(((project.completedWork || 0) / (project.totalWork || 1)) * 100)}%`
-      }));
-      
-      // Export projects to Word
-      await exportToDocx({
-        title: t("app.reports.projectsReport"),
-        description: t("app.reports.projectsDescription"),
-        data: projectData,
-        columns: [
-          { key: 'name', header: t("app.reports.projectName") },
-          { key: 'completedWork', header: t("app.reports.completed") },
-          { key: 'totalWork', header: t("app.reports.total") },
-          { key: 'progress', header: t("app.reports.progress") }
-        ],
-        fileName: `saibalaji_projects_report_${new Date().toISOString().split('T')[0]}.docx`
-      });
-      
-      toast.success(t("common.exportSuccess"));
-    } catch (error) {
-      console.error("Word export error:", error);
-      toast.error(t("common.exportError"));
-    } finally {
-      setLoading(prev => ({ ...prev, word: false }));
+    if (user?.role === 'admin') {
+      loadData();
     }
-  };
+  }, [t, user]);
 
-  const handleExportPdf = async () => {
+  const handleExportProjectPdf = async () => {
+    if (!selectedProjectForExport) return;
+
     try {
-      setLoading(prev => ({ ...prev, pdf: true }));
+      setLoading(prev => ({ ...prev, projectPdf: true }));
       toast.info(t("common.generating"));
       
-      await exportProjectsToPDF(projects);
+      // Fetch project-specific data
+      const projectData = await getProjectExportData(selectedProjectForExport.id);
+      
+      // Export to PDF
+      await exportProjectDataToPDF(projectData.data);
       
       toast.success(t("common.exportSuccess"));
     } catch (error) {
-      console.error("PDF export error:", error);
+      console.error("Project PDF export error:", error);
       toast.error(t("common.exportError"));
     } finally {
-      setLoading(prev => ({ ...prev, pdf: false }));
-    }
-  };
-
-  const handleExportProjectReport = async () => {
-    if (!selectedProject) return;
-    
-    try {
-      setLoading(prev => ({ ...prev, report: true }));
-      toast.info(t("common.generating"));
-      
-      const projectUpdates = progressUpdates.filter(update => update.projectId === selectedProject.id);
-      await generateProjectReport(selectedProject, projectUpdates);
-      
-      toast.success(t("common.exportSuccess"));
-    } catch (error) {
-      console.error("Project report export error:", error);
-      toast.error(t("common.exportError"));
-    } finally {
-      setLoading(prev => ({ ...prev, report: false }));
+      setLoading(prev => ({ ...prev, projectPdf: false }));
     }
   };
 
@@ -147,9 +88,27 @@ const AdminExportData = () => {
     try {
       setLoading(prev => ({ ...prev, image: true }));
       toast.info(t("common.generating"));
+      
+      // Convert aspect ratio string to object
+      let aspectRatioObj;
+      if (aspectRatio === '16:9') aspectRatioObj = { width: 16, height: 9 };
+      else if (aspectRatio === '4:3') aspectRatioObj = { width: 4, height: 3 };
+      else if (aspectRatio === '1:1') aspectRatioObj = { width: 1, height: 1 };
+      else if (aspectRatio === '3:2') aspectRatioObj = { width: 3, height: 2 };
+      else if (aspectRatio === '2:3') aspectRatioObj = { width: 2, height: 3 };
+      else if (aspectRatio === '9:16') aspectRatioObj = { width: 9, height: 16 };
+      else if (aspectRatio === '21:9') aspectRatioObj = { width: 21, height: 9 };
+      else if (aspectRatio === '5:4') aspectRatioObj = { width: 5, height: 4 };
+      else if (aspectRatio === '4:5') aspectRatioObj = { width: 4, height: 5 };
+      else if (aspectRatio === 'custom' && customAspectRatio.width && customAspectRatio.height) {
+        aspectRatioObj = { width: Number(customAspectRatio.width), height: Number(customAspectRatio.height) };
+      }
 
-      const projectUpdates = progressUpdates.filter(update => update.projectId === selectedProject.id);
-      await exportProjectImages(selectedProject, projectUpdates, aspectRatio);
+      await exportProjectImages({
+        project: selectedProject,
+        aspectRatio: aspectRatioObj,
+        outputDirectory: 'project_images'
+      });
 
       toast.success(t("common.exportSuccess"));
     } catch (error) {
@@ -157,6 +116,43 @@ const AdminExportData = () => {
       toast.error(t("common.exportError"));
     } finally {
       setLoading(prev => ({ ...prev, image: false }));
+    }
+  };
+
+  const handleExportFinalImages = async () => {
+    if (!selectedProject) return;
+    try {
+      setLoading(prev => ({ ...prev, finalImages: true }));
+      toast.info(t("common.generating"));
+      let aspectRatioObj;
+      if (aspectRatio === '16:9') aspectRatioObj = { width: 16, height: 9 };
+      else if (aspectRatio === '4:3') aspectRatioObj = { width: 4, height: 3 };
+      else if (aspectRatio === '1:1') aspectRatioObj = { width: 1, height: 1 };
+      else if (aspectRatio === '3:2') aspectRatioObj = { width: 3, height: 2 };
+      else if (aspectRatio === '2:3') aspectRatioObj = { width: 2, height: 3 };
+      else if (aspectRatio === '9:16') aspectRatioObj = { width: 9, height: 16 };
+      else if (aspectRatio === '21:9') aspectRatioObj = { width: 21, height: 9 };
+      else if (aspectRatio === '5:4') aspectRatioObj = { width: 5, height: 4 };
+      else if (aspectRatio === '4:5') aspectRatioObj = { width: 4, height: 5 };
+      else if (aspectRatio === 'custom' && customAspectRatio.width && customAspectRatio.height) {
+        aspectRatioObj = { width: Number(customAspectRatio.width), height: Number(customAspectRatio.height) };
+      }
+      await exportFinalSubmissionImages({
+        project: selectedProject,
+        aspectRatio: aspectRatioObj,
+        outputDirectory: 'final_submission_images'
+      });
+      toast.success(t("common.exportSuccess"));
+    } catch (error: any) {
+      console.error("Final image export error:", error);
+      const errorMsg = (typeof error === 'string') ? error : (error && error.message ? error.message : '');
+      if (errorMsg.toLowerCase().includes('no final submission images found')) {
+        toast.error('Project not completed: No final submission images found for this project.');
+      } else {
+        toast.error(t("common.exportError"));
+      }
+    } finally {
+      setLoading(prev => ({ ...prev, finalImages: false }));
     }
   };
 
@@ -176,205 +172,125 @@ const AdminExportData = () => {
       </p>
       
       <div className="grid gap-6">
-        {/* Export Type Selection */}
+        {/* Project-Based Export Section */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('app.export.type.title')}</CardTitle>
+            <CardTitle>{t('app.export.projectBasedExport')}</CardTitle>
             <CardDescription>
-              {t('app.export.type.description')}
+              {t('app.export.projectBasedExportDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup
-              value={exportType}
-              onValueChange={setExportType}
-              className="grid grid-cols-2 gap-4"
-            >
-              <div>
-                <RadioGroupItem
-                  value="projects"
-                  id="projects"
-                  className="peer sr-only"
-                />
-                <Label
-                  htmlFor="projects"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-              >
-                  <FileText className="mb-3 h-6 w-6" />
-                  <span>{t('app.export.type.projects')}</span>
-                </Label>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="project-export">{t('app.export.selectProject')}</Label>
+                <Select
+                  value={selectedProjectForExport?.id?.toString()}
+                  onValueChange={(value) => {
+                    const project = projects.find(p => p.id.toString() === value);
+                    setSelectedProjectForExport(project || null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('app.export.chooseProjectToExport')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id.toString()}>
+                        {project.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <div>
-                <RadioGroupItem
-                  value="project"
-                  id="project"
-                  className="peer sr-only"
-                />
-                <Label
-                  htmlFor="project"
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-              >
-                  <FileOutput className="mb-3 h-6 w-6" />
-                  <span>{t('app.export.type.project')}</span>
-                </Label>
+              <Button
+                onClick={handleExportProjectPdf}
+                disabled={loading.projectPdf || loading.initial || !selectedProjectForExport}
+                >
+                <FileOutput className="mr-2 h-4 w-4" />
+                {loading.projectPdf ? t('common.generating') : t('app.export.exportProjectReport')}
+              </Button>
               </div>
-            </RadioGroup>
           </CardContent>
         </Card>
-        
-        {/* Project Selection (for single project exports) */}
-        {exportType === 'project' && (
+        {/* Image Export Section */}
           <Card>
             <CardHeader>
-              <CardTitle>{t('app.export.project.title')}</CardTitle>
+            <CardTitle>{t('app.export.imageExport')}</CardTitle>
               <CardDescription>
-                {t('app.export.project.description')}
+              Export project images with custom aspect ratios
               </CardDescription>
             </CardHeader>
             <CardContent>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                  <Label htmlFor="project">{t('app.export.project.select')}</Label>
-                      <Select
-                        value={selectedProject?.id}
-                        onValueChange={(value) => {
-                          const project = projects.find(p => p.id === value);
-                          setSelectedProject(project || null);
-                        }}
-                      >
-                        <SelectTrigger>
-                      <SelectValue placeholder={t('app.export.project.placeholder')} />
-                        </SelectTrigger>
-                        <SelectContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                <Label htmlFor="project-image-export">{t('app.export.selectProject')}</Label>
+                  <Select
+                    value={selectedProject?.id?.toString()}
+                    onValueChange={(value) => {
+                      const project = projects.find(p => p.id.toString() === value);
+                      setSelectedProject(project || null);
+                    }}
+                  >
+                    <SelectTrigger>
+                    <SelectValue placeholder="Choose a project" />
+                    </SelectTrigger>
+                    <SelectContent>
                       {projects.map((project) => (
-                            <SelectItem key={project.id} value={project.id}>
-                              {project.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                {/* Image Export Options */}
-                <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setShowImageDialog(true)}
-                    >
-                      <Image className="mr-2 h-4 w-4" />
-                      {t('app.export.image.options')}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t('app.export.image.title')}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
+                        <SelectItem key={project.id} value={project.id.toString()}>
+                          {project.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                       <div className="space-y-2">
-                        <Label>{t('app.export.image.aspectRatio')}</Label>
-                        <RadioGroup
+                <Label htmlFor="aspect-ratio-select">{t('app.export.aspectRatio')}</Label>
+                <Select
                           value={aspectRatio}
                           onValueChange={setAspectRatio}
-                          className="grid grid-cols-3 gap-4"
-                        >
-                          <div>
-                            <RadioGroupItem
-                              value="original"
-                              id="original"
-                              className="peer sr-only"
-                            />
-                            <Label
-                              htmlFor="original"
-                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                            >
-                              {t('app.export.image.original')}
-                            </Label>
-                          </div>
-                          <div>
-                            <RadioGroupItem
-                              value="16:9"
-                              id="16:9"
-                              className="peer sr-only"
-                            />
-                            <Label
-                              htmlFor="16:9"
-                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                            >
-                              16:9
-                            </Label>
-                          </div>
-                          <div>
-                            <RadioGroupItem
-                              value="4:3"
-                              id="4:3"
-                              className="peer sr-only"
-                            />
-                            <Label
-                              htmlFor="4:3"
-                              className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                            >
-                              4:3
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardContent>
-        </Card>
-        )}
-        
-        {/* Export Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('app.export.actions.title')}</CardTitle>
-            <CardDescription>
-              {t('app.export.actions.description')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {exportType === 'projects' ? (
-              <>
-                <Button
-                  onClick={handleExportDocx}
-                  disabled={loading.word || loading.initial}
                 >
-                  <FileText className="mr-2 h-4 w-4" />
-                  {loading.word ? t('common.generating') : t('app.export.actions.word')}
-                </Button>
-                
-                <Button
-                  onClick={handleExportPdf}
-                  disabled={loading.pdf || loading.initial}
-                >
-                  <FileOutput className="mr-2 h-4 w-4" />
-                  {loading.pdf ? t('common.generating') : t('app.export.actions.pdf')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={handleExportProjectReport}
-                  disabled={loading.report || loading.initial || !selectedProject}
-                >
-                  <FilePlus className="mr-2 h-4 w-4" />
-                  {loading.report ? t('common.generating') : t('app.export.actions.report')}
-                </Button>
-                
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose aspect ratio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="original">Original</SelectItem>
+                    <SelectItem value="16:9">16:9</SelectItem>
+                    <SelectItem value="4:3">4:3</SelectItem>
+                    <SelectItem value="1:1">1:1</SelectItem>
+                    <SelectItem value="3:2">3:2</SelectItem>
+                    <SelectItem value="2:3">2:3</SelectItem>
+                    <SelectItem value="9:16">9:16</SelectItem>
+                    <SelectItem value="21:9">21:9</SelectItem>
+                    <SelectItem value="5:4">5:4</SelectItem>
+                    <SelectItem value="4:5">4:5</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                {aspectRatio === 'custom' && (
+                  <div className="flex gap-2 mt-2">
+                    <input type="number" min="1" placeholder="Width" value={customAspectRatio.width} onChange={e => setCustomAspectRatio({ ...customAspectRatio, width: e.target.value })} className="border rounded p-1 w-20" />
+                    <span>:</span>
+                    <input type="number" min="1" placeholder="Height" value={customAspectRatio.height} onChange={e => setCustomAspectRatio({ ...customAspectRatio, height: e.target.value })} className="border rounded p-1 w-20" />
+                          </div>
+                )}
+              </div>
                 <Button
                   onClick={handleExportImages}
                   disabled={loading.image || loading.initial || !selectedProject}
                 >
                   <Image className="mr-2 h-4 w-4" />
-                  {loading.image ? t('common.generating') : t('app.export.actions.images')}
+                {loading.image ? t('common.generating') : t('app.export.exportImages')}
+              </Button>
+              <Button
+                onClick={handleExportFinalImages}
+                disabled={loading.finalImages || loading.initial || !selectedProject}
+                variant="secondary"
+              >
+                <Image className="mr-2 h-4 w-4" />
+                {loading.finalImages ? t('common.generating') : 'Export Final Images'}
                 </Button>
-              </>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>

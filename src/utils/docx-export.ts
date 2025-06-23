@@ -424,3 +424,6 @@ export const generateWordAndConvertToPdf = async (options: DocxExportOptions): P
   // Return the blob for further processing (e.g., conversion to PDF)
   return buffer;
 };
+
+// Export comprehensive project data to Word
+// Removed exportComprehensiveDataToWord function - no longer needed

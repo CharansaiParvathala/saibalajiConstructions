@@ -350,7 +350,9 @@
         "meters": "ಮೀಟರ್‌ಗಳು",
         "timeSpent": "ಖರ್ಚು ಮಾಡಿದ ಸಮಯ",
         "hours": "ಗಂಟೆಗಳು",
+        "updates": "ನವೀಕರಣಗಳು",
         "latestUpdate": "ಇತ್ತೀಚಿನ ನವೀಕರಣ",
+        "lastActivity": "ಕೊನೆಯ ಚಟುವಟಿಕೆ",
         "in": "ನಲ್ಲಿ",
         "viewDetailedStats": "ವಿವರವಾದ ಅಂಕಿಅಂಶಗಳನ್ನು ವೀಕ್ಷಿಸಿ",
         "userDistribution": "ಬಳಕೆದಾರರ ವಿತರಣೆ",
@@ -459,7 +461,13 @@
         "selectProject": "ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
         "aspectRatio": "ಆಕಾರ ಅನುಪಾತ",
         "original": "ಮೂಲ",
-        "export": "ರಫ್ತು ಮಾಡಿ"
+        "export": "ರಫ್ತು ಮಾಡಿ",
+        "comprehensiveExport": "ಸಮಗ್ರ ರಫ್ತು",
+        "comprehensiveExportDesc": "ಸಮಗ್ರ ವರದಿಯಲ್ಲಿ ಎಲ್ಲಾ ಯೋಜನೆ ಡೇಟಾ, ಪಾವತಿಗಳು ಮತ್ತು ಅಂಕಿಅಂಶಗಳನ್ನು ರಫ್ತು ಮಾಡಿ",
+        "projectBasedExport": "ಯೋಜನೆ ಆಧಾರಿತ ರಫ್ತು",
+        "projectBasedExportDesc": "ಪ್ರಗತಿ ಮತ್ತು ಪಾವತಿ ಮಾಹಿತಿಯೊಂದಿಗೆ ನಿರ್ದಿಷ್ಟ ಯೋಜನೆಗಾಗಿ ಡೇಟಾವನ್ನು ರಫ್ತು ಮಾಡಿ",
+        "chooseProjectToExport": "ರಫ್ತು ಮಾಡಲು ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+        "exportProjectReport": "ಯೋಜನೆ ವರದಿಯನ್ನು ರಫ್ತು ಮಾಡಿ (PDF)"
       }
     },
     "owner": {

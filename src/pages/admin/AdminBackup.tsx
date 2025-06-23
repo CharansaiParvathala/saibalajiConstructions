@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/sonner';
-import { Link2, Trash2, ExternalLink } from 'lucide-react';
-import { getAllBackupLinks, createBackupLink, deleteBackupLink, BackupLink } from '@/lib/storage';
+import { Link2, Edit2 } from 'lucide-react';
+import { getAllBackupLinks, createBackupLink, updateBackupLink, BackupLink } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
 
 const AdminBackup = () => {
@@ -18,7 +19,11 @@ const AdminBackup = () => {
   const navigate = useNavigate();
   const [backupLinks, setBackupLinks] = useState<BackupLink[]>([]);
   const [newLink, setNewLink] = useState({ url: '', description: '' });
+  const [editingLink, setEditingLink] = useState<BackupLink | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingLinks, setIsLoadingLinks] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Redirect if not admin
   useEffect(() => {
@@ -29,11 +34,25 @@ const AdminBackup = () => {
 
   // Load backup links
   useEffect(() => {
-    const links = getAllBackupLinks();
-    setBackupLinks(links);
-  }, []);
+    const loadBackupLinks = async () => {
+      try {
+        setIsLoadingLinks(true);
+        const links = await getAllBackupLinks();
+        setBackupLinks(links);
+      } catch (error) {
+        console.error('Error loading backup links:', error);
+        toast.error('Failed to load backup links');
+      } finally {
+        setIsLoadingLinks(false);
+      }
+    };
 
-  const handleAddBackupLink = () => {
+    if (user?.role === 'admin') {
+      loadBackupLinks();
+    }
+  }, [user]);
+
+  const handleAddBackupLink = async () => {
     if (!newLink.url || !newLink.description) {
       toast.error(t("app.admin.backup.allFieldsRequired"));
       return;
@@ -46,14 +65,10 @@ const AdminBackup = () => {
 
     setIsLoading(true);
     try {
-      const backupLinkData = {
+      const savedLink = await createBackupLink({
         url: newLink.url,
-        description: newLink.description,
-        createdAt: new Date().toISOString(),
-        createdBy: user?.id || 'unknown'
-      };
-
-      const savedLink = createBackupLink(backupLinkData);
+        description: newLink.description
+      });
       
       setBackupLinks(prev => [...prev, savedLink]);
       setNewLink({ url: '', description: '' });
@@ -67,16 +82,71 @@ const AdminBackup = () => {
     }
   };
 
-  const handleDeleteLink = (id: string) => {
+  const handleUpdateLink = async () => {
+    if (!editingLink) return;
+
+    if (!editingLink.url || !editingLink.description) {
+      toast.error(t("app.admin.backup.allFieldsRequired"));
+      return;
+    }
+
+    if (!editingLink.url.startsWith('http')) {
+      toast.error(t("app.admin.backup.invalidUrl"));
+      return;
+    }
+
+    setIsUpdating(true);
     try {
-      deleteBackupLink(id);
-      setBackupLinks(prev => prev.filter(link => link.id !== id));
-      toast.success(t("app.admin.backup.linkDeleted"));
+      const updatedLink = await updateBackupLink(editingLink.id, {
+        url: editingLink.url,
+        description: editingLink.description
+      });
+      
+      setBackupLinks(prev => prev.map(link => 
+        link.id === editingLink.id ? updatedLink : link
+      ));
+      setEditingLink(null);
+      setIsDialogOpen(false); // Close the dialog
+      
+      toast.success('Backup link updated successfully');
     } catch (error) {
-      console.error("Error deleting backup link:", error);
-      toast.error(t("app.admin.backup.deleteError"));
+      console.error("Error updating backup link:", error);
+      toast.error('Failed to update backup link');
+    } finally {
+      setIsUpdating(false);
     }
   };
+
+  const openEditDialog = (link: BackupLink) => {
+    setEditingLink({ ...link });
+    setIsDialogOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setEditingLink(null);
+    setIsDialogOpen(false);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      // Reset the editing state when dialog closes
+      setEditingLink(null);
+    }
+    setIsDialogOpen(open);
+  };
+
+  if (isLoadingLinks) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading backup links...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -132,46 +202,103 @@ const AdminBackup = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("app.admin.backup.url")}</TableHead>
-                  <TableHead>{t("app.admin.backup.description")}</TableHead>
-                  <TableHead>{t("app.admin.backup.createdAt")}</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {backupLinks.map(link => (
-                  <TableRow key={link.id}>
-                    <TableCell>
-                      <a 
-                        href={link.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-blue-600 hover:underline"
-                      >
-                        <Link2 size={16} />
-                        {link.url}
-                      </a>
-                    </TableCell>
-                    <TableCell>{link.description}</TableCell>
-                    <TableCell>
-                      {new Date(link.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteLink(link.id)}
-                      >
-                        <Trash2 size={16} className="text-destructive" />
-                      </Button>
-                    </TableCell>
+            {backupLinks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No backup links found</p>
+                <p className="text-sm">Add your first backup link using the form on the left</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("app.admin.backup.url")}</TableHead>
+                    <TableHead>{t("app.admin.backup.description")}</TableHead>
+                    <TableHead>{t("app.admin.backup.createdAt")}</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {backupLinks.map(link => (
+                    <TableRow key={link.id}>
+                      <TableCell>
+                        <a 
+                          href={link.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-blue-600 hover:underline"
+                        >
+                          <Link2 size={16} />
+                          {link.url}
+                        </a>
+                      </TableCell>
+                      <TableCell>{link.description}</TableCell>
+                      <TableCell>
+                        {new Date(link.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(link)}
+                            >
+                              <Edit2 size={16} className="text-blue-600" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent key={editingLink?.id || 'new'}>
+                            <DialogHeader>
+                              <DialogTitle>Edit Backup Link</DialogTitle>
+                              <DialogDescription>
+                                Update the backup link URL and description.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-url">URL</Label>
+                                <Input
+                                  id="edit-url"
+                                  value={editingLink?.url || ''}
+                                  onChange={(e) => setEditingLink(prev => 
+                                    prev ? { ...prev, url: e.target.value } : null
+                                  )}
+                                  placeholder="Enter backup link URL"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-description">Description</Label>
+                                <Textarea
+                                  id="edit-description"
+                                  value={editingLink?.description || ''}
+                                  onChange={(e) => setEditingLink(prev => 
+                                    prev ? { ...prev, description: e.target.value } : null
+                                  )}
+                                  placeholder="Enter backup link description"
+                                />
+                              </div>
+                              <div className="flex justify-end space-x-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={closeEditDialog}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={handleUpdateLink}
+                                  disabled={isUpdating}
+                                >
+                                  {isUpdating ? 'Updating...' : 'Update Link'}
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -39,8 +39,12 @@ export interface Vehicle {
 export interface Driver {
   id: string;
   name: string;
+  mobileNumber: string;
   licenseNumber: string;
   licenseType: string;
+  licenseImageUrl?: string;
+  licenseImageName?: string;
+  licenseImageMime?: string;
   experience: number;
   experienceYears?: number; // For backward compatibility
   isExternal: boolean;
@@ -79,6 +83,24 @@ export interface ProgressUpdate {
   created_at: string;
   image_proof?: string; // base64 encoded image
   image_ids?: number[]; // array of image IDs for database retrieval
+  start_meter_image_id?: number | null;
+  end_meter_image_id?: number | null;
+  vehicle?: {
+    id: number;
+    model: string;
+    type: string;
+  } | null;
+  driver?: {
+    id: number;
+    name: string;
+    mobile_number: string;
+    license_number: string;
+    license_type: string;
+  } | null;
+  driver_external?: {
+    name: string;
+    license_type: string;
+  } | null;
 }
 
 export interface PaymentRequest {
@@ -121,11 +143,12 @@ export interface CorrectionRequest {
 }
 
 export interface BackupLink {
-  id: string;
+  id: number;
   url: string;
   description: string;
   createdAt: string;
-  createdBy: string;
+  createdBy: number;
+  createdByName?: string;
 }
 
 // Enhanced interfaces for tracking progress

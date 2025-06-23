@@ -427,3 +427,46 @@ body, .card, .btn, .nav-button {
 .dark [data-radix-popper-content-wrapper] > div {
   @apply bg-card border border-border text-foreground;
 }
+
+/* Checker Dialog Customization */
+.checker-dialog {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 1050 !important;
+  width: 100%;
+  max-width: 480px;
+  min-width: 320px;
+  max-height: 80vh;
+  min-height: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+  overflow-y: auto;
+  background: inherit;
+}
+
+@media (min-width: 640px) {
+  .checker-dialog {
+    max-width: 540px;
+    min-width: 400px;
+    padding: 2.5rem 2rem;
+  }
+}
+
+html, body {
+  height: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+/* Always ensure radix dialog overlays and content are fixed to the viewport */
+[data-radix-popper-content-wrapper], 
+[data-radix-dialog-content], 
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: all !important;
+}

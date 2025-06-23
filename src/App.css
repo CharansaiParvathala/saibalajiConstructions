@@ -40,3 +40,12 @@
 .read-the-docs {
   color: #888;
 }
+/* Always ensure radix dialog overlays and content are fixed to the viewport */
+[data-radix-popper-content-wrapper], 
+[data-radix-dialog-content], 
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: all !important;
+}

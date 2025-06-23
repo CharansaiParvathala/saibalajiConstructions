@@ -1,35 +1,57 @@
-
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getAllProjects, getAllPaymentRequests } from '@/lib/storage';
+import { getProjects, getPaymentRequests } from '@/lib/api/api-client';
 import { Project, PaymentRequest } from '@/lib/types';
+import { useAuth } from '@/context/auth-context';
 
 const CheckerDashboard = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [pendingPayments, setPendingPayments] = useState<PaymentRequest[]>([]);
   const [approvedPayments, setApprovedPayments] = useState<PaymentRequest[]>([]);
   const [rejectedPayments, setRejectedPayments] = useState<PaymentRequest[]>([]);
-  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+
   useEffect(() => {
-    // Load all projects
-    setProjects(getAllProjects());
-    
-    // Load all payment requests
-    const allPayments = getAllPaymentRequests();
-    setPendingPayments(allPayments.filter(p => p.status === 'pending'));
-    setApprovedPayments(allPayments.filter(p => p.status === 'approved'));
-    setRejectedPayments(allPayments.filter(p => p.status === 'rejected'));
-  }, []);
-  
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const projectsData = await getProjects();
+        setProjects(projectsData);
+        // If user is available, fetch payment requests
+        const paymentRequestsData = await getPaymentRequests(user?.id ? Number(user.id) : undefined);
+        setPendingPayments(paymentRequestsData.filter((p: PaymentRequest) => p.status === 'pending'));
+        setApprovedPayments(paymentRequestsData.filter((p: PaymentRequest) => p.status === 'approved'));
+        setRejectedPayments(paymentRequestsData.filter((p: PaymentRequest) => p.status === 'rejected'));
+      } catch (err: any) {
+        setError(err.message || 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  if (loading) {
+    return <div className="container mx-auto p-4">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="container mx-auto p-4 text-red-500">{error}</div>;
+  }
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-4xl font-bold mb-6">Checker Dashboard</h1>
       <p className="text-muted-foreground mb-8">
         Review submissions, verify accuracy, and approve or reject payment requests.
       </p>
-      
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="pb-2">
@@ -42,7 +64,6 @@ const CheckerDashboard = () => {
             </p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
@@ -54,7 +75,6 @@ const CheckerDashboard = () => {
             </p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Approved Requests</CardTitle>
@@ -66,7 +86,6 @@ const CheckerDashboard = () => {
             </p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Rejected Requests</CardTitle>
@@ -79,7 +98,6 @@ const CheckerDashboard = () => {
           </CardContent>
         </Card>
       </div>
-      
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -99,7 +117,6 @@ const CheckerDashboard = () => {
             </Link>
           </CardFooter>
         </Card>
-        
         <Card>
           <CardHeader>
             <CardTitle>Review History</CardTitle>
@@ -118,7 +135,6 @@ const CheckerDashboard = () => {
             </Link>
           </CardFooter>
         </Card>
-        
         <Card>
           <CardHeader>
             <CardTitle>Projects</CardTitle>

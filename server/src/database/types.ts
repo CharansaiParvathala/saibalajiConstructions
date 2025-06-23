@@ -37,6 +37,7 @@ export interface Database {
   createDriver(driver: Omit<Driver, 'id'>): Promise<Driver>;
   updateDriver(driver: Driver): Promise<void>;
   deleteDriver(id: string): Promise<void>;
+  getDriverById(id: string): Promise<Driver | undefined>;
 
   // Backup Links
   getAllBackupLinks(): Promise<BackupLink[]>;
