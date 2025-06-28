@@ -8,19 +8,32 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/ui/sonner';
 import { useLanguage } from '@/context/language-context';
 
+interface Driver {
+  id: number;
+  name: string;
+  mobile_number: string;
+  license_number: string;
+  license_type: string;
+  license_image?: string;
+  license_image_name?: string;
+  experience: number;
+  is_external: boolean;
+}
+
 const AdminDrivers = () => {
   const { t } = useLanguage();
-  const [drivers, setDrivers] = useState([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [name, setName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [licenseType, setLicenseType] = useState('');
-  const [licenseImage, setLicenseImage] = useState(null);
-  const [editingDriverId, setEditingDriverId] = useState(null);
-  const expanderRef = useRef(null);
+  const [licenseImage, setLicenseImage] = useState<File | null>(null);
+  const [editingDriverId, setEditingDriverId] = useState<number | null>(null);
+  const expanderRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     loadDrivers();
@@ -36,7 +49,7 @@ const AdminDrivers = () => {
       }
       const data = await res.json();
       setDrivers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch drivers:', error);
       toast.error(`Failed to fetch drivers: ${error.message}`);
     }
@@ -71,7 +84,7 @@ const AdminDrivers = () => {
       setShowAddDialog(false);
       resetForm();
       loadDrivers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Add driver error:', error);
       toast.error(`Failed to add driver: ${error.message}`);
     }
@@ -106,7 +119,7 @@ const AdminDrivers = () => {
       setShowEditDialog(false);
       resetForm();
       loadDrivers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Edit driver error:', error);
       toast.error(`Failed to update driver: ${error.message}`);
     }
@@ -121,12 +134,12 @@ const AdminDrivers = () => {
       setShowDeleteDialog(false);
       setSelectedDriver(null);
       loadDrivers();
-    } catch (error) {
+    } catch (error: any) {
       toast.error('Failed to delete driver');
     }
   };
 
-  const openEditInline = (driver) => {
+  const openEditInline = (driver: Driver) => {
     setSelectedDriver(driver);
     setName(driver.name);
     setMobileNumber(driver.mobile_number);
@@ -179,7 +192,7 @@ const AdminDrivers = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {drivers.map(driver => (
+                  {drivers.map((driver: Driver) => (
                     <React.Fragment key={driver.id}>
                       <tr>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{driver.name}</td>
@@ -241,7 +254,11 @@ const AdminDrivers = () => {
                                 </div>
                                 <div className="flex-1 min-w-[180px]">
                                   <Label>{t('app.admin.drivers.licenseImage')}</Label>
-                                  <Input type="file" accept="image/*" onChange={e => setLicenseImage(e.target.files?.[0] || null)} />
+                                  <Input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={e => setLicenseImage(e.target.files?.[0] || null)} 
+                                  />
                                 </div>
                               </div>
                               <div className="flex justify-end gap-2">
@@ -285,7 +302,13 @@ const AdminDrivers = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="licenseImage" className="text-right">{t('app.admin.drivers.licenseImage')}</Label>
-              <Input type="file" id="licenseImage" accept="image/*" onChange={e => setLicenseImage(e.target.files?.[0] || null)} className="col-span-3" />
+              <Input 
+                type="file" 
+                id="licenseImage" 
+                accept="image/*" 
+                onChange={e => setLicenseImage(e.target.files?.[0] || null)} 
+                className="col-span-3" 
+              />
             </div>
           </div>
           <DialogFooter>
