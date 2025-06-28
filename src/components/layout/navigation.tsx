@@ -20,6 +20,7 @@ import {
   FileClock,
   Gavel,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface NavItem {
   title: string;
@@ -154,6 +155,12 @@ const navigationItems: NavItem[] = [
     icon: <LinkIcon className="h-5 w-5" />,
     roles: ['owner'],
   },
+  {
+    title: t('app.owner.credentials.title'),
+    href: '/owner/credentials',
+    icon: <Settings className="h-5 w-5" />,
+    roles: ['owner'],
+  },
 
   // Checker navigation
   {
@@ -185,6 +192,7 @@ const navigationItems: NavItem[] = [
 export function Navigation() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { t } = useTranslation();
 
   if (!user) {
     return null;

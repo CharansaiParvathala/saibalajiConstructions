@@ -146,21 +146,21 @@ const AdminDashboard = () => {
     ).length;
     
     setProjectStatusData([
-      { name: "Completed", value: completedProjects },
-      { name: "In Progress", value: inProgressProjects },
-      { name: "Not Started", value: notStartedProjects }
+      { name: t("app.admin.dashboard.completed"), value: completedProjects },
+      { name: t("app.admin.dashboard.inProgress"), value: inProgressProjects },
+      { name: t("app.admin.dashboard.notStarted"), value: notStartedProjects }
     ].filter(item => item.value > 0));
     
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data. Please try again.');
+        setError(t("app.admin.dashboard.loadError"));
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, []);
+  }, [t]);
   
   const getOverallProgress = () => {
     const completed = safeNumber(totalCompletedWork);
@@ -183,7 +183,7 @@ const AdminDashboard = () => {
         <div className="flex items-center justify-center h-64">
           <div className="flex items-center space-x-2">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span>Loading dashboard data...</span>
+            <span>{t("app.admin.dashboard.loading")}</span>
           </div>
         </div>
       </div>
@@ -197,7 +197,7 @@ const AdminDashboard = () => {
           <div className="text-center">
             <p className="text-red-500 mb-4">{error}</p>
             <Button onClick={() => window.location.reload()}>
-              Retry
+              {t("app.admin.dashboard.retry")}
             </Button>
           </div>
         </div>
@@ -207,7 +207,7 @@ const AdminDashboard = () => {
   
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t("app.admin.dashboard.title")}</h1>
+      <h1 className="text-4xl font-bold mb-6">{user?.name || t("app.admin.dashboard.title")}</h1>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
@@ -263,7 +263,7 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-muted-foreground">
                 {pendingPaymentCount} {t("app.admin.dashboard.pending")} • 
-                ₹ {Math.round(totalPaid).toLocaleString()} paid
+                ₹ {Math.round(totalPaid).toLocaleString()} {t("app.admin.dashboard.paid")}
               </span>
             </div>
           </CardContent>
@@ -403,7 +403,7 @@ const AdminDashboard = () => {
                     {projectStatusData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.name === 'Completed' ? '#00C49F' : entry.name === 'In Progress' ? '#FFBB28' : '#FF8042'}
+                        fill={entry.name === t("app.admin.dashboard.completed") ? '#00C49F' : entry.name === t("app.admin.dashboard.inProgress") ? '#FFBB28' : '#FF8042'}
                       />
                     ))}
                   </Pie>

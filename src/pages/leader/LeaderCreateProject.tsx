@@ -12,23 +12,23 @@ import { toast } from '@/components/ui/sonner';
 import { useLanguage } from '@/context/language-context';
 import { createProject } from '@/lib/api/api-client';
 
-const formSchema = z.object({
-  title: z.string().min(3, {
-    message: "Project title must be at least 3 characters.",
-  }),
-  description: z.string().min(10, {
-    message: "Description must be at least 10 characters.",
-  }),
-  totalWork: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Total work must be a positive number.",
-  }),
-});
-
 const LeaderCreateProject = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const formSchema = z.object({
+    title: z.string().min(3, {
+      message: t('app.createProject.validation.title'),
+    }),
+    description: z.string().min(10, {
+      message: t('app.createProject.validation.description'),
+    }),
+    totalWork: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: t('app.createProject.validation.totalWork'),
+    }),
+  });
   
   const {
     register,
@@ -45,13 +45,13 @@ const LeaderCreateProject = () => {
   
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!user) {
-      toast.error("You must be logged in to create a project");
+      toast.error(t('app.createProject.error.notLoggedIn'));
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      toast.error("Authentication token missing. Please login again.");
+      toast.error(t('app.createProject.error.tokenMissing'));
       navigate('/login');
       return;
     }
@@ -73,7 +73,7 @@ const LeaderCreateProject = () => {
       const newProject = await createProject(projectData);
       
       console.log('Project created:', newProject);
-      toast.success("Project created successfully");
+      toast.success(t('app.createProject.success'));
       
       // Redirect to dashboard after short delay
       setTimeout(() => {
@@ -81,29 +81,10 @@ const LeaderCreateProject = () => {
       }, 1500);
       
     } catch (error: any) {
-      console.error("Error creating project:", error);
-      
-      // Handle different types of errors
-      if (error?.response?.data?.error) {
-        const errorData = error.response.data;
-        if (errorData.details) {
-          // Show specific field errors
-          const missingFields = Object.entries(errorData.details)
-            .filter(([_, isMissing]) => isMissing)
-            .map(([field]) => field)
-            .join(', ');
-          toast.error(`Missing required fields: ${missingFields}`);
-        } else {
-          toast.error(errorData.error);
-        }
-      } else if (error?.message) {
-        if (typeof error.message === 'string' && 
-            (error.message.includes('token') || error.message.includes('login'))) {
-          navigate('/login');
-        }
-        toast.error(error.message);
+      if (error.message && error.message.includes('Project name already exists')) {
+        toast.error(t('app.createProject.error.duplicateName'));
       } else {
-      toast.error("Failed to create project. Please try again.");
+        toast.error(t('app.createProject.error.generic'));
       }
     } finally {
       setIsSubmitting(false);
@@ -173,7 +154,7 @@ const LeaderCreateProject = () => {
                 className="w-full"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Creating..." : t('app.createProject.submit')}
+                {isSubmitting ? t('app.createProject.submitting') : t('app.createProject.submit')}
               </Button>
             </CardFooter>
           </form>

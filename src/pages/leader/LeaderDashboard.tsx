@@ -71,7 +71,7 @@ const LeaderDashboard = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-4xl font-bold">{t('app.dashboard.title')}</h1>
+          <h1 className="text-4xl font-bold">{user?.name || 'Dashboard'}</h1>
           <p className="text-muted-foreground">
             {t('app.dashboard.description')}
           </p>
@@ -81,7 +81,7 @@ const LeaderDashboard = () => {
           className="flex items-center gap-2"
         >
           <CheckCircle className="h-4 w-4" />
-          Final Project Submission
+          {t('app.leader.finalSubmission.title')}
         </Button>
       </div>
       
@@ -95,7 +95,7 @@ const LeaderDashboard = () => {
           </CardContent>
           <CardFooter>
             <Button variant="outline" className="w-full" onClick={() => navigate('/leader/projects/new')}>
-              Create New Project
+              {t('app.leader.dashboard.createNewProject')}
             </Button>
           </CardFooter>
         </Card>
@@ -131,7 +131,7 @@ const LeaderDashboard = () => {
         </Card>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2">
+      <div>
         <Card>
           <CardHeader>
             <CardTitle>{t('app.leader.dashboard.projects.title')}</CardTitle>
@@ -146,7 +146,7 @@ const LeaderDashboard = () => {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[300px] md:max-h-[500px] overflow-y-auto pr-2">
                 {projects.map((project) => (
                   <Card key={project.id}>
                     <CardContent className="p-4">
@@ -160,41 +160,6 @@ const LeaderDashboard = () => {
                         <Button variant="outline" size="sm" onClick={() => navigate(`/leader/projects/${project.id}`)}>
                           {t('app.common.viewDetails')}
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('app.leader.dashboard.recentPayments.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentPayments.length === 0 ? (
-              <div className="text-center py-8">
-                <h3 className="text-lg font-semibold mb-2">{t('app.leader.dashboard.recentPayments.empty.title')}</h3>
-                <p className="text-muted-foreground mb-4">{t('app.leader.dashboard.recentPayments.empty.description')}</p>
-                <Button onClick={() => navigate('/leader/request-payment')} className="w-full">
-                  {t('app.leader.dashboard.recentPayments.empty.button')}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {recentPayments.map((payment) => (
-                  <Card key={payment.id}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold">₹ {Number(payment.totalAmount || 0).toFixed(2)}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {t('app.common.requestedOn')} {payment.date ? format(new Date(payment.date), 'MMM d, yyyy') : 'N/A'}
-                          </p>
-                        </div>
-                        {getStatusBadge(payment.status)}
                       </div>
                     </CardContent>
                   </Card>

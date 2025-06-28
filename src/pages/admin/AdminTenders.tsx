@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
@@ -9,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
-import { Plus, Download, Trash2, Edit } from 'lucide-react';
+import { Plus, Download, Trash2, Edit, FileText } from 'lucide-react';
 import { getAllProjects } from '@/lib/storage';
 import { getTenderBills, saveTenderBill, deleteTenderBill, getTenders, saveTender, updateTender } from '@/lib/tender-storage';
 import { TenderBill, Tender, TenderItem } from '@/lib/tender-types';
@@ -255,18 +254,18 @@ const AdminTenders = () => {
                   <div className="space-y-4">
                     <div>
                       <Label>Bill Type</Label>
-                      <Select value={billForm.billType} onValueChange={(value) => setBillForm(prev => ({ ...prev, billType: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select bill type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="material">Material</SelectItem>
-                          <SelectItem value="labor">Labor</SelectItem>
-                          <SelectItem value="equipment">Equipment</SelectItem>
-                          <SelectItem value="transport">Transport</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <select
+                        className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+                        value={billForm.billType}
+                        onChange={e => setBillForm(prev => ({ ...prev, billType: e.target.value }))}
+                      >
+                        <option value="" disabled>Select bill type</option>
+                        <option value="material">Material</option>
+                        <option value="labor">Labor</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="transport">Transport</option>
+                        <option value="other">Other</option>
+                      </select>
                     </div>
                     
                     {billForm.billType === 'other' && (
@@ -345,16 +344,16 @@ const AdminTenders = () => {
                   <div className="space-y-4">
                     <div>
                       <Label>Project</Label>
-                      <Select value={tenderForm.projectId} onValueChange={(value) => setTenderForm(prev => ({ ...prev, projectId: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select project" />
-                        </SelectTrigger>
-                        <SelectContent>
+                      <select
+                        className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+                        value={tenderForm.projectId}
+                        onChange={e => setTenderForm(prev => ({ ...prev, projectId: e.target.value }))}
+                      >
+                        <option value="" disabled>Select project</option>
                           {projects.map(project => (
-                            <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+                          <option key={project.id} value={project.id}>{project.name}</option>
                           ))}
-                        </SelectContent>
-                      </Select>
+                      </select>
                     </div>
                     
                     <div>
@@ -386,25 +385,22 @@ const AdminTenders = () => {
                       
                       {tenderForm.selectedBills.map((selectedBill, index) => (
                         <div key={index} className="grid grid-cols-4 gap-2 p-2 border rounded">
-                          <Select 
+                          <select
+                            className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
                             value={selectedBill.billId} 
-                            onValueChange={(value) => {
-                              const bill = tenderBills.find(b => b.id === value);
-                              handleUpdateSelectedBill(index, 'billId', value);
+                            onChange={e => {
+                              const bill = tenderBills.find(b => b.id === e.target.value);
+                              handleUpdateSelectedBill(index, 'billId', e.target.value);
                               handleUpdateSelectedBill(index, 'unitCost', bill?.cost || 0);
                             }}
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select bill" />
-                            </SelectTrigger>
-                            <SelectContent>
+                            <option value="" disabled>Select bill</option>
                               {tenderBills.map(bill => (
-                                <SelectItem key={bill.id} value={bill.id}>
+                              <option key={bill.id} value={bill.id}>
                                   {bill.billType} - ₹{bill.cost}
-                                </SelectItem>
+                              </option>
                               ))}
-                            </SelectContent>
-                          </Select>
+                          </select>
                           
                           <Input
                             type="number"
@@ -474,8 +470,9 @@ const AdminTenders = () => {
                         <Button variant="outline" size="sm" onClick={() => handleExportTenderPDF(tender)}>
                           <Download className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleExportTenderWord(tender)}>
+                        <Button variant="outline" size="sm" onClick={() => window.open('https://www.ilovepdf.com/pdf_to_word', '_blank')}>
                           <FileText className="h-4 w-4" />
+                          Convert to Word
                         </Button>
                       </div>
                     </div>

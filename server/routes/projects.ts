@@ -7,12 +7,26 @@ const router = express.Router();
 // Get all projects
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const [rows] = await pool.query(`
+    const { status, notCompleted } = req.query;
+    let query = `
       SELECT p.*, u.name as leader_name
       FROM projects p
       LEFT JOIN users u ON p.leader_id = u.id
-      ORDER BY p.created_at DESC
-    `);
+    `;
+    const conditions = [];
+    const params = [];
+    if (status) {
+      conditions.push('p.status = ?');
+      params.push(status);
+    }
+    if (notCompleted === 'true') {
+      conditions.push('p.completed_work < p.total_work');
+    }
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY p.created_at DESC';
+    const [rows] = await pool.query(query, params);
     console.log('Fetched projects:', rows);
     res.json(rows);
   } catch (error) {
@@ -558,41 +572,16 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
 // Create new project
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { title, description, total_work, leader_id } = req.body;
-    
-    // Validate required fields
-    if (!title || !description || !total_work || !leader_id) {
-      console.log('Missing fields:', { title, description, total_work, leader_id });
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        details: {
-          title: !title,
-          description: !description,
-          total_work: !total_work,
-          leader_id: !leader_id
-        }
-      });
-    }
-
-    console.log('Creating project with data:', { title, description, total_work, leader_id });
-
+    const { title, description, leader_id, total_work, status, start_date } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO projects (title, description, leader_id, total_work, completed_work, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, description, leader_id, total_work, 0, 'active']
+      'INSERT INTO projects (title, description, leader_id, total_work, status, start_date) VALUES (?, ?, ?, ?, ?, ?)',
+      [title, description, leader_id, total_work, status, start_date]
     );
-
-    console.log('Project created with ID:', (result as any).insertId);
-
-    const [newProject] = await pool.query(`
-      SELECT p.*, u.name as leader_name
-      FROM projects p
-      LEFT JOIN users u ON p.leader_id = u.id
-      WHERE p.id = ?
-    `, [(result as any).insertId]);
-
-    console.log('New project data:', newProject[0]);
-    res.status(201).json(newProject[0]);
-  } catch (error) {
+    res.status(201).json({ id: result.insertId, ...req.body });
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Project name already exists' });
+    }
     console.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }

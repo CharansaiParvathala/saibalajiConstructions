@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,8 @@ import { toast } from '@/components/ui/sonner';
 import { getUsers, createUser, updateUser, apiRequest } from '@/lib/api/api-client';
 import { User, UserRole } from '@/lib/types';
 import { useNavigate } from 'react-router-dom';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import ResponsiveModal from '@/components/ui/ResponsiveModal';
 
 const AdminCredentials = () => {
   const { user } = useAuth();
@@ -18,15 +20,18 @@ const AdminCredentials = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('leader');
+  const [role, setRole] = useState<UserRole>(UserRole.LEADER);
   const [mobileNumber, setMobileNumber] = useState('');
+  
+  const expanderRef = useRef<HTMLTableRowElement | null>(null);
   
   // Redirect if not admin
   useEffect(() => {
@@ -39,6 +44,21 @@ const AdminCredentials = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+  
+  useEffect(() => {
+    if (!editingUserId) return;
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (expanderRef.current && !expanderRef.current.contains(event.target as Node)) {
+        closeEditInline();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [editingUserId]);
   
   const loadUsers = async () => {
     try {
@@ -90,7 +110,7 @@ const AdminCredentials = () => {
         mobileNumber
       });
       toast.success(t("app.admin.credentials.userUpdated"));
-      setShowEditDialog(false);
+      setShowEditModal(false);
       resetForm();
       await loadUsers();
     } catch (error) {
@@ -120,14 +140,19 @@ const AdminCredentials = () => {
     }
   };
   
-  const openEditDialog = (user: User) => {
+  const openEditInline = (user: User) => {
     setSelectedUser(user);
     setName(user.name);
     setEmail(user.email);
     setPassword('');
     setRole(user.role);
     setMobileNumber(user.mobileNumber || '');
-    setShowEditDialog(true);
+    setEditingUserId(user.id);
+  };
+  
+  const closeEditInline = () => {
+    setEditingUserId(null);
+    resetForm();
   };
   
   const openDeleteDialog = (user: User) => {
@@ -139,7 +164,7 @@ const AdminCredentials = () => {
     setName('');
     setEmail('');
     setPassword('');
-    setRole('leader');
+    setRole(UserRole.LEADER);
     setMobileNumber('');
     setSelectedUser(null);
   };
@@ -150,12 +175,10 @@ const AdminCredentials = () => {
   
   const getRoleLabel = (role: UserRole): string => {
     const labels: Record<UserRole, string> = {
-      'admin': 'Admin',
-      'leader': 'Team Leader',
-      'checker': 'Quality Checker',
-      'owner': 'Owner'
+      admin: t('app.auth.roles.admin'),
+      leader: t('app.auth.roles.leader'),
+      user: t('app.auth.roles.user'),
     };
-    
     return labels[role] || role;
   };
   
@@ -164,7 +187,7 @@ const AdminCredentials = () => {
     setRole(value as UserRole);
   };
 
-  const downloadBlob = (blob, filename, mimeType = 'image/jpeg') => {
+  const downloadBlob = (blob: Blob, filename: string, mimeType = 'image/jpeg') => {
     const url = URL.createObjectURL(new Blob([blob], { type: mimeType }));
     const a = document.createElement('a');
     a.href = url;
@@ -174,12 +197,12 @@ const AdminCredentials = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-2 md:p-4 max-w-full w-full">
       <h1 className="text-4xl font-bold mb-6">{t("app.admin.credentials.title")}</h1>
       <p className="text-muted-foreground mb-8">
         {t("app.admin.credentials.description")}
       </p>
-          <Card>
+          <Card className="w-full max-w-full">
             <CardHeader>
               <CardTitle>{t("app.admin.credentials.userAccounts")}</CardTitle>
               <CardDescription>
@@ -206,52 +229,99 @@ const AdminCredentials = () => {
                 </div>
               </div>
               <Button onClick={() => setShowAddDialog(true)}>{t("app.admin.credentials.addUser")}</Button>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <div className="overflow-x-auto w-full">
+                <table className="min-w-[350px] w-full divide-y divide-gray-200 text-sm">
                   <thead>
                     <tr>
-                      <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/4 md:w-[180px] px-2 md:px-6 py-2 md:py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider truncate">
                         {t("app.admin.credentials.name")}
                       </th>
-                      <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/3 md:w-[220px] px-2 md:px-6 py-2 md:py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider truncate">
                         {t("app.admin.credentials.email")}
                       </th>
-                      <th className="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-1/6 md:w-[120px] px-2 md:px-6 py-2 md:py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider truncate">
                         {t("app.admin.credentials.role")}
                       </th>
-                      <th className="px-6 py-3 bg-gray-50"></th>
+                      <th className="w-20 md:w-[120px] px-2 md:px-6 py-2 md:py-3 bg-gray-50 truncate"></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {users.map(user => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{getRoleLabel(user.role)}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(user)}
-                        className="mr-2"
-                      >
-                        {t("app.admin.credentials.edit")}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                            size="sm"
-                        onClick={() => handleResetPassword(user.id)}
-                          >
-                        {t("app.admin.credentials.resetPassword")}
-                          </Button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={user.id}>
+                        <tr>
+                          <td className="px-2 md:px-6 py-2 md:py-4 whitespace-nowrap truncate w-1/4 md:w-[180px]">
+                            <div className="text-sm font-medium text-gray-900 truncate">{user.name}</div>
+                          </td>
+                          <td className="px-2 md:px-6 py-2 md:py-4 whitespace-nowrap truncate w-1/3 md:w-[220px]">
+                            <div className="text-sm text-gray-500 truncate">{user.email}</div>
+                          </td>
+                          <td className="px-2 md:px-6 py-2 md:py-4 whitespace-nowrap truncate w-1/6 md:w-[120px]">
+                            <div className="text-sm text-gray-500 truncate">{getRoleLabel(user.role)}</div>
+                          </td>
+                          <td className="px-2 md:px-6 py-2 md:py-4 whitespace-nowrap text-right text-sm font-medium truncate w-20 md:w-[120px]">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditInline(user)}
+                              className="mr-2"
+                            >
+                              {t("app.admin.credentials.edit")}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleResetPassword(user.id)}
+                              className="mr-2"
+                            >
+                              {t("app.admin.credentials.resetPassword")}
+                            </Button>
+                          </td>
+                        </tr>
+                        {editingUserId === user.id && (
+                          <tr ref={expanderRef}>
+                            <td colSpan={4} className="bg-gray-50 px-6 py-4">
+                              <div className="flex flex-col gap-4">
+                                <div className="flex gap-4 flex-wrap">
+                                  <div className="flex-1 min-w-[180px]">
+                                    <Label>{t('app.admin.credentials.name')}</Label>
+                                    <Input value={name} onChange={e => setName(e.target.value)} />
+                                  </div>
+                                  <div className="flex-1 min-w-[180px]">
+                                    <Label>{t('app.admin.credentials.email')}</Label>
+                                    <Input value={email} onChange={e => setEmail(e.target.value)} />
+                                  </div>
+                                  <div className="flex-1 min-w-[140px]">
+                                    <Label htmlFor="role">{t('app.admin.credentials.role')}</Label>
+                                    <select
+                                      id="role"
+                                      className="w-full p-2 border rounded"
+                                      value={role}
+                                      onChange={e => setRole(e.target.value as UserRole)}
+                                    >
+                                      <option value="leader">{t('app.auth.roles.leader')}</option>
+                                      <option value="owner">{t('app.auth.roles.owner')}</option>
+                                      <option value="checker">{t('app.auth.roles.checker')}</option>
+                                      <option value="admin">{t('app.auth.roles.admin')}</option>
+                                    </select>
+                                  </div>
+                                  <div className="flex-1 min-w-[140px]">
+                                    <Label>{t('app.admin.credentials.mobileNumber')}</Label>
+                                    <Input value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} />
+                                  </div>
+                                  <div className="flex-1 min-w-[140px]">
+                                    <Label>{t('app.admin.credentials.password')}</Label>
+                                    <Input type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="secondary" onClick={closeEditInline}>{t('app.admin.credentials.cancel')}</Button>
+                                  <Button onClick={handleEditUser}>{t('app.admin.credentials.save')}</Button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -298,17 +368,17 @@ const AdminCredentials = () => {
               <Label htmlFor="role" className="text-right">
                 {t("app.admin.credentials.role")}
               </Label>
-              <Select value={role} onValueChange={handleRoleChange}>
-                <SelectTrigger id="role" className="col-span-3">
-                  <SelectValue placeholder={t("app.admin.credentials.selectRole")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">{t("app.auth.roles.admin")}</SelectItem>
-                  <SelectItem value="leader">{t("app.auth.roles.leader")}</SelectItem>
-                  <SelectItem value="checker">{t("app.auth.roles.checker")}</SelectItem>
-                  <SelectItem value="owner">{t("app.auth.roles.owner")}</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="role"
+                className="w-full p-2 border rounded"
+                value={role}
+                onChange={e => setRole(e.target.value as UserRole)}
+              >
+                <option value="leader">{t('app.auth.roles.leader')}</option>
+                <option value="owner">{t('app.auth.roles.owner')}</option>
+                <option value="checker">{t('app.auth.roles.checker')}</option>
+                <option value="admin">{t('app.auth.roles.admin')}</option>
+              </select>
             </div>
           </div>
           
@@ -318,70 +388,6 @@ const AdminCredentials = () => {
             </Button>
             <Button onClick={handleAddUser}>
               {t("app.admin.credentials.createUser")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Edit User Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("app.admin.credentials.editUser")}</DialogTitle>
-            <DialogDescription>
-              {t("app.admin.credentials.editUserDetails")}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                {t("app.admin.credentials.name")}
-              </Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                {t("app.admin.credentials.email")}
-              </Label>
-              <Input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="password" className="text-right">
-                {t("app.admin.credentials.password")}
-              </Label>
-              <Input type="password" id="password" placeholder={t("app.admin.credentials.leaveBlank")} onChange={(e) => setPassword(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="mobileNumber" className="text-right">
-                {t("app.admin.credentials.mobileNumber")}
-              </Label>
-              <Input id="mobileNumber" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="role" className="text-right">
-                {t("app.admin.credentials.role")}
-              </Label>
-              <Select value={role} onValueChange={handleRoleChange}>
-                <SelectTrigger id="role" className="col-span-3">
-                  <SelectValue placeholder={t("app.admin.credentials.selectRole")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">{t("app.auth.roles.admin")}</SelectItem>
-                  <SelectItem value="leader">{t("app.auth.roles.leader")}</SelectItem>
-                  <SelectItem value="checker">{t("app.auth.roles.checker")}</SelectItem>
-                  <SelectItem value="owner">{t("app.auth.roles.owner")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setShowEditDialog(false)}>
-              {t("app.admin.credentials.cancel")}
-            </Button>
-            <Button onClick={handleEditUser}>
-              {t("app.admin.credentials.updateUser")}
             </Button>
           </DialogFooter>
         </DialogContent>

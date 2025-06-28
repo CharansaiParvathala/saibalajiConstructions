@@ -5,15 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ExternalLink } from 'lucide-react';
-import { getAllBackupLinks, BackupLink } from '@/lib/storage';
+import { getAllBackupLinks } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
+import { BackupLink } from '@/lib/types';
 
 const OwnerBackupLinks: React.FC = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [backupLinks, setBackupLinks] = useState<BackupLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Redirect if not owner
   useEffect(() => {
@@ -24,37 +27,67 @@ const OwnerBackupLinks: React.FC = () => {
 
   // Load backup links
   useEffect(() => {
-    const links = getAllBackupLinks();
+    const fetchBackupLinks = async () => {
+      try {
+        setLoading(true);
+        const links = await getAllBackupLinks();
     setBackupLinks(links);
-  }, []);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching backup links:', err);
+        setError(t('app.owner.backupLinks.loadFailed'));
+        toast.error(t('app.common.error'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBackupLinks();
+  }, [t]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
 
-  const handleCreateLink = () => {
-    // TODO: Implement create backup link functionality
-    toast.success(t('owner.backupLinks.linkCreated'));
-  };
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold">{t('app.owner.backupLinks.title')}</h1>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('app.common.loading')}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
-  const handleDeleteLink = (linkId: string) => {
-    // TODO: Implement delete backup link functionality
-    toast.success(t('owner.backupLinks.linkDeleted'));
-  };
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold">{t('app.owner.backupLinks.title')}</h1>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('app.common.error')}</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-4xl font-bold">{t('owner.backupLinks.title')}</h1>
+      <div className="mb-6">
+          <h1 className="text-4xl font-bold">{t('app.owner.backupLinks.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            {t('owner.backupLinks.description')}
+            {t('app.owner.backupLinks.description')}
           </p>
-        </div>
-        <Button onClick={handleCreateLink}>
-          {t('owner.backupLinks.createLink')}
-        </Button>
       </div>
 
       {backupLinks.length > 0 ? (
@@ -62,10 +95,9 @@ const OwnerBackupLinks: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t('owner.backupLinks.linkDetails')}</TableHead>
-                <TableHead>{t('owner.backupLinks.createdOn')}</TableHead>
-                <TableHead>{t('owner.backupLinks.expiresOn')}</TableHead>
-                <TableHead className="text-right">{t('common.actions')}</TableHead>
+                <TableHead>{t('app.owner.backupLinks.linkDetails')}</TableHead>
+                <TableHead>{t('app.owner.backupLinks.createdOn')}</TableHead>
+                <TableHead className="text-right">{t('app.common.view')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -74,28 +106,18 @@ const OwnerBackupLinks: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <ExternalLink className="h-4 w-4" />
-                      <span className="font-medium">{link.id}</span>
+                      <span className="font-medium">{link.description || link.id}</span>
                     </div>
                   </TableCell>
                   <TableCell>{formatDate(link.createdAt)}</TableCell>
-                  <TableCell>{formatDate(link.expiresAt)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => window.open(link.url, '_blank')}
                       >
-                        {t('owner.backupLinks.download')}
+                      {t('app.owner.backupLinks.visit')}
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteLink(link.id)}
-                      >
-                        {t('owner.backupLinks.delete')}
-                      </Button>
-                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -105,9 +127,9 @@ const OwnerBackupLinks: React.FC = () => {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>{t('owner.backupLinks.noLinks')}</CardTitle>
+            <CardTitle>{t('app.owner.backupLinks.noLinks')}</CardTitle>
             <CardDescription>
-              {t('owner.backupLinks.noLinksDesc')}
+              {t('app.owner.backupLinks.noLinksDesc')}
             </CardDescription>
           </CardHeader>
         </Card>

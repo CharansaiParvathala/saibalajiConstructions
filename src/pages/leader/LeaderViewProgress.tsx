@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,43 +31,30 @@ const LeaderViewProgress = () => {
   const [showDialog, setShowDialog] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [imageUrls, setImageUrls] = useState<{ [key: string]: string }>({});
+  const [loadingProjects, setLoadingProjects] = useState(true);
   
   useEffect(() => {
-    const loadData = async () => {
+    const loadProjects = async () => {
       try {
-        setLoading(true);
-        const allProjects = await getProjects();
-        const userProjects = allProjects.filter(project => project.leader_id === Number(user?.id));
-        // Filter out projects with completed final submission
-        const filteredProjects = [];
-        for (const project of userProjects) {
-          const finalSubs = await getFinalSubmissions(project.id);
-          const hasCompletedFinal = finalSubs.some(sub => sub.status === 'completed');
-          if (!hasCompletedFinal) {
-            filteredProjects.push(project);
+        setLoadingProjects(true);
+        if (user) {
+          const userProjects = await getProjects({ notCompleted: true });
+          setProjects(userProjects.filter(project => project.leader_id === Number(user.id)));
+          // Only set initial project if available
+          let initialProjectId = projectId || (userProjects[0] && userProjects[0].id.toString());
+          if (initialProjectId && userProjects.some(p => p.id.toString() === initialProjectId)) {
+          setSelectedProject(initialProjectId);
           }
         }
-        setProjects(filteredProjects);
-
-        if (filteredProjects.length > 0) {
-          // If projectId is provided in URL, use it; otherwise use the first project
-          const initialProjectId = projectId || filteredProjects[0].id.toString();
-          const updates = await getProgressUpdates(Number(initialProjectId));
-          setProgressUpdates(updates);
-          setSelectedProject(initialProjectId);
-          
-          // Load images for all progress updates
-          await loadImagesForProgress(updates);
-        }
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('Error loading projects:', error);
         toast.error(t("common.error"));
       } finally {
-        setLoading(false);
+        setLoadingProjects(false);
       }
     };
-
-    loadData();
+    loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, t, projectId]);
   
   const loadImagesForProgress = async (updates: ProgressUpdate[]) => {
@@ -89,6 +76,25 @@ const LeaderViewProgress = () => {
     
     setImageUrls(newImageUrls);
   };
+  
+  // Only load progress updates when a project is selected
+  useEffect(() => {
+    const fetchProgressUpdates = async () => {
+      if (!selectedProject) return;
+      try {
+        setLoading(true);
+        const updates = await getProgressUpdates(Number(selectedProject));
+        setProgressUpdates(updates);
+        await loadImagesForProgress(updates);
+      } catch (error) {
+        console.error('Error loading project updates:', error);
+        toast.error(t("common.error"));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProgressUpdates();
+  }, [selectedProject]);
   
   const handleProjectChange = async (projectId: string) => {
     try {
@@ -131,6 +137,12 @@ const LeaderViewProgress = () => {
     };
   }, [imageUrls]);
   
+  // Memoize project options for select
+  const projectOptions = useMemo(() => projects.map((project) => ({
+    value: project.id.toString(),
+    label: project.title
+  })), [projects]);
+  
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -141,30 +153,37 @@ const LeaderViewProgress = () => {
   
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t('app.progress.title')}</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.viewProgress.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        {t('app.progress.description')}
+        {t('app.viewProgress.description')}
       </p>
       
       <div className="space-y-4">
         <div>
-          <Label htmlFor="project">{t("app.viewProgress.project")}</Label>
-          <Select 
+          <Label htmlFor="project">{t('app.viewProgress.project')}</Label>
+          {loadingProjects ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            projects.length === 0 ? (
+              <div className="text-center text-muted-foreground py-4">{t('app.viewProgress.noProjectsAvailable')}</div>
+            ) : (
+              <select
+                className="w-full p-2 border rounded"
             value={selectedProject} 
-            onValueChange={handleProjectChange}
-            key="project-select"
+                onChange={e => setSelectedProject(e.target.value)}
+                disabled={loadingProjects}
           >
-            <SelectTrigger className="w-full" key="project-trigger">
-              <SelectValue placeholder={t("app.viewProgress.selectProject")} />
-            </SelectTrigger>
-            <SelectContent key="project-content">
-              {projects.map((project) => (
-                <SelectItem key={`project-${project.id}`} value={project.id.toString()}>
-                  {project.title}
-                </SelectItem>
+                <option value="" disabled>{t('app.viewProgress.selectProject')}</option>
+                {projectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
               ))}
-            </SelectContent>
-          </Select>
+              </select>
+            )
+          )}
         </div>
         
         {selectedProject && (
@@ -174,14 +193,14 @@ const LeaderViewProgress = () => {
                 {projects.find(p => p.id === Number(selectedProject))?.title}
               </CardTitle>
               <CardDescription>
-                {t('app.progress.overview')}
+                {t('app.viewProgress.overview')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between mb-1">
-                    <span>{t('app.progress.overallCompletion')}:</span>
+                    <span>{t('app.viewProgress.overallCompletion')}:</span>
                     <span>{calculateCompletionPercentage(selectedProject)}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-4">
@@ -194,15 +213,15 @@ const LeaderViewProgress = () => {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('app.progress.totalWork')}:</p>
+                    <p className="text-sm text-muted-foreground">{t('app.viewProgress.totalWork')}:</p>
                     <p className="text-lg font-medium">
-                      {projects.find(p => p.id === Number(selectedProject))?.total_work} {t('app.progress.meters')}
+                      {projects.find(p => p.id === Number(selectedProject))?.total_work} {t('app.viewProgress.meters')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('app.progress.completedWork')}:</p>
+                    <p className="text-sm text-muted-foreground">{t('app.viewProgress.completedWork')}:</p>
                     <p className="text-lg font-medium">
-                      {projects.find(p => p.id === Number(selectedProject))?.completed_work} {t('app.progress.meters')}
+                      {projects.find(p => p.id === Number(selectedProject))?.completed_work} {t('app.viewProgress.meters')}
                     </p>
                   </div>
                 </div>
@@ -213,14 +232,14 @@ const LeaderViewProgress = () => {
         
         <Card key="progress-updates">
           <CardHeader>
-            <CardTitle>{t('app.progress.updates.title')}</CardTitle>
+            <CardTitle>{t('app.viewProgress.updates.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             {progressUpdates.length === 0 ? (
               <div className="text-center py-8">
-                <h3 className="text-lg font-medium mb-2">{t('app.progress.updates.empty.title')}</h3>
+                <h3 className="text-lg font-medium mb-2">{t('app.viewProgress.updates.empty.title')}</h3>
                 <p className="text-muted-foreground">
-                  {t('app.progress.updates.empty.description')}
+                  {t('app.viewProgress.updates.empty.description')}
                 </p>
               </div>
             ) : (
@@ -230,7 +249,7 @@ const LeaderViewProgress = () => {
                     <CardHeader>
                       <CardTitle>{formatDate(update.created_at)}</CardTitle>
                       <CardDescription>
-                        {t("app.viewProgress.completedWork")}: {update.completed_work}m
+                        {t('app.viewProgress.completedWork')}: {update.completed_work}m
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -275,7 +294,7 @@ const LeaderViewProgress = () => {
                       {/* Progress Images with subheading, excluding meter images */}
                       {update.image_ids && update.image_ids.filter(id => id !== update.start_meter_image_id && id !== update.end_meter_image_id).length > 0 && (
                         <div className="mt-4">
-                          <div className="font-semibold text-lg mb-2">Progress Images</div>
+                          <div className="font-semibold text-lg mb-2">{t('app.viewProgress.progressImages')}</div>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {update.image_ids.filter(id => id !== update.start_meter_image_id && id !== update.end_meter_image_id).map((imageId, index) => {
                               const imageKey = `${update.id}-${imageId}`;
@@ -284,7 +303,7 @@ const LeaderViewProgress = () => {
                                 <div key={`photo-${update.id}-${imageId}`} className="relative">
                                   <img
                                     src={imageUrl}
-                                    alt={`${t("app.viewProgress.progressPhoto")} ${index + 1}`}
+                                    alt={`${t('app.viewProgress.progressPhoto')} ${index + 1}`}
                                     className="w-full h-56 object-cover rounded-lg"
                                     onError={(e) => {
                                       console.error(`Failed to load image ${imageId}`);
@@ -306,7 +325,7 @@ const LeaderViewProgress = () => {
                       {/* Remark/Note with subheading */}
                       {update.description && (
                         <div className="mt-4">
-                          <div className="font-semibold text-lg mb-2">Remark</div>
+                          <div className="font-semibold text-lg mb-2">{t('app.viewProgress.remark')}</div>
                           <p className="text-base text-muted-foreground">{update.description}</p>
                         </div>
                       )}
@@ -323,9 +342,9 @@ const LeaderViewProgress = () => {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{t('app.progress.details.title')}</DialogTitle>
+            <DialogTitle>{t('app.viewProgress.details.title')}</DialogTitle>
             <DialogDescription>
-              {t('app.progress.details.updateFrom')} {selectedProgress && formatDate(selectedProgress.created_at)}
+              {t('app.viewProgress.details.updateFrom')} {selectedProgress && formatDate(selectedProgress.created_at)}
             </DialogDescription>
           </DialogHeader>
           
@@ -337,8 +356,9 @@ const LeaderViewProgress = () => {
               </pre>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h3 className="font-semibold mb-2">{t('app.progress.details.workInfo')}</h3>
+                  <h3 className="font-semibold mb-2">{t('app.viewProgress.details.workInfo')}</h3>
                   <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">{t('app.viewProgress.details.date')}:</span> {formatDate(selectedProgress.created_at)}</p>
                     <p><span className="font-medium">{t('app.progress.details.date')}:</span> {formatDate(selectedProgress.created_at)}</p>
                     <p><span className="font-medium">{t('app.progress.details.workCompleted')}:</span> {selectedProgress.completed_work} {t('app.progress.meters')}</p>
                     <p><span className="font-medium">{t('app.progress.details.completion')}:</span> {selectedProgress.completion_percentage}%</p>

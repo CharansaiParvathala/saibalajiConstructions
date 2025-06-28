@@ -175,21 +175,16 @@ const AdminCreateTender = () => {
                 <div key={expense.id} className="flex gap-4 items-end">
                   <div className="flex-1">
                     <Label>Expense Type</Label>
-                    <Select
+                    <select
+                      className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
                       value={expense.isCustom ? 'Other' : expense.type}
-                      onValueChange={(value) => updateExpense(expense.id, 'type', value)}
+                      onChange={e => updateExpense(expense.id, 'type', e.target.value)}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select expense type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {predefinedExpenseTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
+                      <option value="" disabled>Select expense type</option>
+                      {predefinedExpenseTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
                         ))}
-                      </SelectContent>
-                    </Select>
+                    </select>
                   </div>
                   {expense.isCustom && (
                     <div className="flex-1">
@@ -262,11 +257,11 @@ const AdminCreateTender = () => {
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={handleExportWord}
+                  onClick={() => window.open('https://www.ilovepdf.com/pdf_to_word', '_blank')}
                   disabled={loading}
                 >
                   <FileText className="mr-2 h-4 w-4" />
-                  {loading ? 'Generating...' : 'Export as Word'}
+                  Convert to Word
                 </Button>
               </div>
             </CardContent>

@@ -4,13 +4,13 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = express.Router();
 
-// Get all backup links (admin only)
+// Get all backup links (admin and owner)
 router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    // Check if user is admin
+    // Check if user is admin or owner
     const user = (req as any).user;
-    if (user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      return res.status(403).json({ error: 'Access denied. Admin or owner only.' });
     }
 
     const [rows] = await pool.query(`

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { getProjects, getProgressUpdates } from '@/lib/api/api-client';
 import { Project, ProgressUpdate } from '@/lib/types';
 import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
+import { useLanguage } from '@/context/language-context';
 
 const CheckerProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -22,6 +23,7 @@ const CheckerProjects = () => {
   const [leaders, setLeaders] = useState<{ id: number, name: string }[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const detailsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const loadData = async () => {
@@ -85,6 +87,14 @@ const CheckerProjects = () => {
     };
     fetchProgress();
   }, [leaderFilter, selectedProject]);
+
+  useEffect(() => {
+    if (statusFilter === 'all') {
+      setFilteredProgress(progressUpdates);
+    } else {
+      setFilteredProgress(progressUpdates.filter(p => p.status === statusFilter));
+    }
+  }, [statusFilter, progressUpdates]);
 
   const loadImagesForProgress = async (updates: ProgressUpdate[]) => {
     const newImageUrls: { [key: string]: string } = {};
@@ -157,49 +167,49 @@ const CheckerProjects = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">Checker Progress Overview</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.checker.projects.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        View and monitor progress updates for all projects.
+        {t('app.checker.projects.description')}
       </p>
       <div className="mb-6 max-w-md grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="leader">Leader</Label>
-          <Select value={leaderFilter} onValueChange={handleLeaderChange}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select leader" />
-            </SelectTrigger>
-            <SelectContent>
+          <Label htmlFor="leader">{t('app.checker.projects.leader')}</Label>
+          <select
+            className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+            value={leaderFilter}
+            onChange={e => handleLeaderChange(e.target.value)}
+          >
+            <option value="" disabled>{t('app.checker.projects.selectLeader')}</option>
               {leaders.map(l => (
-                <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>
+              <option key={l.id} value={l.id.toString()}>{l.name}</option>
               ))}
-            </SelectContent>
-          </Select>
+          </select>
         </div>
         <div>
-          <Label htmlFor="project">Project</Label>
-          <Select value={selectedProject} onValueChange={handleProjectChange} disabled={filteredProjects.length === 0}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent>
+          <Label htmlFor="project">{t('app.checker.projects.project')}</Label>
+          <select
+            className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+            value={selectedProject}
+            onChange={e => handleProjectChange(e.target.value)}
+            disabled={filteredProjects.length === 0}
+          >
+            <option value="" disabled>{t('app.checker.projects.selectProject')}</option>
               {filteredProjects.map(p => (
-                <SelectItem key={p.id} value={p.id.toString()}>{p.title}</SelectItem>
+              <option key={p.id} value={p.id.toString()}>{p.title}</option>
               ))}
-            </SelectContent>
-          </Select>
+          </select>
         </div>
         <div>
-          <Label htmlFor="status">Status</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="status">{t('app.checker.projects.status')}</Label>
+          <select
+            className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+          >
+            <option value="all">{t('app.checker.projects.allStatuses')}</option>
+            <option value="completed">{t('app.checker.projects.completed')}</option>
+            <option value="pending">{t('app.checker.projects.pending')}</option>
+          </select>
         </div>
       </div>
       {leaderFilter && selectedProject && (
@@ -207,7 +217,7 @@ const CheckerProjects = () => {
           {filteredProgress.map(progress => (
             <Card key={progress.id}>
               <CardHeader>
-                <CardTitle>{projects.find(p => p.id === progress.project_id)?.title || 'Project'}</CardTitle>
+                <CardTitle>{projects.find(p => p.id === progress.project_id)?.title || t('app.checker.projects.project')}</CardTitle>
                 <CardDescription>{formatDate(progress.created_at)}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -217,7 +227,7 @@ const CheckerProjects = () => {
                     <div className="mb-2">
                       <div className="font-semibold text-lg">{progress.vehicle.model} <span className="text-sm text-muted-foreground">({progress.vehicle.type})</span></div>
                       {progress.driver_external ? (
-                        <div className="text-base">{progress.driver_external.name} <span className="italic text-xs">(External Driver)</span></div>
+                        <div className="text-base">{progress.driver_external.name} <span className="italic text-xs">({t('app.checker.projects.externalDriver')})</span></div>
                       ) : progress.driver ? (
                         <div className="text-base">{progress.driver.name}</div>
                       ) : null}
@@ -228,10 +238,10 @@ const CheckerProjects = () => {
                     <div className="mb-2">
                       {progress.start_meter_image_id && (
                         <div className="mb-1">
-                          <div className="text-base font-semibold">Start Meter</div>
+                          <div className="text-base font-semibold">{t('app.checker.projects.startMeter')}</div>
                           <img
                             src={imageUrls[`${progress.id}-${progress.start_meter_image_id}`]}
-                            alt="Start Meter"
+                            alt={t('app.checker.projects.startMeter')}
                             className="w-32 h-20 object-cover rounded border"
                             onError={e => (e.currentTarget.style.display = 'none')}
                           />
@@ -239,10 +249,10 @@ const CheckerProjects = () => {
                       )}
                       {progress.end_meter_image_id && (
                         <div>
-                          <div className="text-base font-semibold">End Meter</div>
+                          <div className="text-base font-semibold">{t('app.checker.projects.endMeter')}</div>
                           <img
                             src={imageUrls[`${progress.id}-${progress.end_meter_image_id}`]}
-                            alt="End Meter"
+                            alt={t('app.checker.projects.endMeter')}
                             className="w-32 h-20 object-cover rounded border"
                             onError={e => (e.currentTarget.style.display = 'none')}
                           />
@@ -253,7 +263,7 @@ const CheckerProjects = () => {
                   {/* Progress Images with subheading, excluding meter images */}
                   {progress.image_ids && progress.image_ids.filter(id => id !== progress.start_meter_image_id && id !== progress.end_meter_image_id).length > 0 && (
                     <div className="mt-4">
-                      <div className="font-semibold text-lg mb-2">Progress Images</div>
+                      <div className="font-semibold text-lg mb-2">{t('app.checker.projects.progressImages')}</div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {progress.image_ids.filter(id => id !== progress.start_meter_image_id && id !== progress.end_meter_image_id).map((imageId, index) => {
                           const imageKey = `${progress.id}-${imageId}`;
@@ -262,8 +272,8 @@ const CheckerProjects = () => {
                             <div key={index} className="relative">
                               <img
                                 src={imageUrl}
-                                alt={`Progress photo ${index + 1}`}
-                                className="w-full h-56 object-cover rounded-lg"
+                                alt={`${t('app.checker.projects.progressPhoto')} ${index + 1}`}
+                                className="w-full h-40 object-cover rounded-lg"
                                 onError={e => (e.target.style.display = 'none')}
                               />
                             </div>
@@ -281,12 +291,12 @@ const CheckerProjects = () => {
                   {/* Remark/Note with subheading */}
                   {progress.description && (
                     <div className="mt-4">
-                      <div className="font-semibold text-lg mb-2">Remark</div>
+                      <div className="font-semibold text-lg mb-2">{t('app.checker.projects.remark')}</div>
                       <div className="text-base text-muted-foreground">{progress.description}</div>
                     </div>
                   )}
                   <div className="flex justify-between mb-1 mt-4">
-                    <span>Completion:</span>
+                    <span>{t('app.checker.projects.completion')}</span>
                     <span>{calculateCompletionPercentage(progress.project_id.toString())}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2.5">
@@ -298,18 +308,16 @@ const CheckerProjects = () => {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full" onClick={e => handleViewProgress(progress, e)}>
-                  View Details
-                </Button>
+                {/* Removed View Details button as per request */}
               </CardFooter>
             </Card>
           ))}
           {filteredProgress.length === 0 && (
             <Card className="col-span-full">
               <CardHeader>
-                <CardTitle>No Progress Found</CardTitle>
+                <CardTitle>{t('app.checker.projects.noProgressFound')}</CardTitle>
                 <CardDescription>
-                  No progress updates match your filter criteria.
+                  {t('app.checker.projects.noProgressMatch')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -317,13 +325,13 @@ const CheckerProjects = () => {
         </div>
       )}
       {(leaderFilter && !selectedProject) && (
-        <div className="text-center text-muted-foreground py-12">Please select a leader and project to view progress updates.</div>
+        <div className="text-center text-muted-foreground py-12">{t('app.checker.projects.selectLeaderAndProject')}</div>
       )}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-xl w-full max-h-[90vh]" position="center" style={{position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999}}>
+        <DialogContent className="max-w-xl w-full max-h-[90vh] bg-white dark:bg-[#23272f] dark:text-white" position="center" style={{position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999}}>
           <div className="overflow-y-auto max-h-[75vh]">
             <DialogHeader>
-              <DialogTitle>Progress Details</DialogTitle>
+              <DialogTitle>{t('app.checker.projects.progressDetails')}</DialogTitle>
               <DialogDescription>
                 {selectedProgress && formatDate(selectedProgress.created_at)}
               </DialogDescription>
@@ -338,7 +346,7 @@ const CheckerProjects = () => {
                   <div className="mb-2">
                     <div className="font-semibold text-lg">{selectedProgress.vehicle.model} <span className="text-sm text-muted-foreground">({selectedProgress.vehicle.type})</span></div>
                     {selectedProgress.driver_external ? (
-                      <div className="text-base">{selectedProgress.driver_external.name} <span className="italic text-xs">(External Driver)</span></div>
+                      <div className="text-base">{selectedProgress.driver_external.name} <span className="italic text-xs">({t('app.checker.projects.externalDriver')})</span></div>
                     ) : selectedProgress.driver ? (
                       <div className="text-base">{selectedProgress.driver.name}</div>
                     ) : null}
@@ -349,10 +357,10 @@ const CheckerProjects = () => {
                   <div className="mb-2">
                     {selectedProgress.start_meter_image_id && (
                       <div className="mb-1">
-                        <div className="text-base font-semibold">Start Meter</div>
+                        <div className="text-base font-semibold">{t('app.checker.projects.startMeter')}</div>
                         <img
                           src={imageUrls[`${selectedProgress.id}-${selectedProgress.start_meter_image_id}`]}
-                          alt="Start Meter"
+                          alt={t('app.checker.projects.startMeter')}
                           className="w-32 h-20 object-cover rounded border"
                           onError={e => (e.currentTarget.style.display = 'none')}
                         />
@@ -360,10 +368,10 @@ const CheckerProjects = () => {
                     )}
                     {selectedProgress.end_meter_image_id && (
                       <div>
-                        <div className="text-base font-semibold">End Meter</div>
+                        <div className="text-base font-semibold">{t('app.checker.projects.endMeter')}</div>
                         <img
                           src={imageUrls[`${selectedProgress.id}-${selectedProgress.end_meter_image_id}`]}
-                          alt="End Meter"
+                          alt={t('app.checker.projects.endMeter')}
                           className="w-32 h-20 object-cover rounded border"
                           onError={e => (e.currentTarget.style.display = 'none')}
                         />
@@ -374,7 +382,7 @@ const CheckerProjects = () => {
                 {/* Progress Images with subheading, excluding meter images */}
                 {selectedProgress.image_ids && selectedProgress.image_ids.filter(id => id !== selectedProgress.start_meter_image_id && id !== selectedProgress.end_meter_image_id).length > 0 && (
                   <div className="mt-4">
-                    <div className="font-semibold text-lg mb-2">Progress Images</div>
+                    <div className="font-semibold text-lg mb-2">{t('app.checker.projects.progressImages')}</div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {selectedProgress.image_ids.filter(id => id !== selectedProgress.start_meter_image_id && id !== selectedProgress.end_meter_image_id).map((imageId, index) => {
                         const imageKey = `${selectedProgress.id}-${imageId}`;
@@ -383,8 +391,8 @@ const CheckerProjects = () => {
                           <div key={index} className="relative">
                             <img
                               src={imageUrl}
-                              alt={`Progress photo ${index + 1}`}
-                              className="w-full h-56 object-cover rounded-lg"
+                              alt={`${t('app.checker.projects.progressPhoto')} ${index + 1}`}
+                              className="w-full h-40 object-cover rounded-lg"
                               onError={e => (e.target.style.display = 'none')}
                             />
                           </div>
@@ -402,12 +410,12 @@ const CheckerProjects = () => {
                 {/* Remark/Note with subheading */}
                 {selectedProgress.description && (
                   <div className="mt-4">
-                    <div className="font-semibold text-lg mb-2">Remark</div>
+                    <div className="font-semibold text-lg mb-2">{t('app.checker.projects.remark')}</div>
                     <div className="text-base text-muted-foreground">{selectedProgress.description}</div>
                   </div>
                 )}
                 <div className="flex justify-between mb-1 mt-4">
-                  <span>Completion:</span>
+                  <span>{t('app.checker.projects.completion')}</span>
                   <span>{calculateCompletionPercentage(selectedProgress.project_id.toString())}%</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2.5">

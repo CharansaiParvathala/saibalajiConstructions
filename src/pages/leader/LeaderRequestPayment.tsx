@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
 import { Project, PaymentPurpose, PhotoWithMetadata, ProgressUpdate } from '@/lib/types';
@@ -27,40 +27,33 @@ const LeaderRequestPayment = () => {
   ]);
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingProjects, setLoadingProjects] = useState<boolean>(true);
   
   // Create file input ref for each purpose
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadProjects = async () => {
       try {
-        setLoading(true);
+        setLoadingProjects(true);
         const allProjects = await getProjects();
         if (user) {
           const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
           setProjects(userProjects);
-
           if (userProjects.length > 0) {
-            const updates = await getProgressUpdates(Number(userProjects[0].id));
-            setProgressUpdates(updates);
             setSelectedProject(userProjects[0].id.toString());
-            // Filter out progress updates that already have a payment request
-            const allPayments = await getPaymentRequests(Number(user.id));
-            const paidProgressIds = new Set(
-              allPayments.map((pr: any) => pr.progress_id).filter((id: any) => id != null)
-            );
-            setFilteredProgressUpdates(updates.filter(u => !paidProgressIds.has(u.id)));
+            await handleProjectChange(userProjects[0].id.toString());
           }
         }
       } catch (error) {
         console.error('Error loading data:', error);
         toast.error(t("common.error"));
       } finally {
-        setLoading(false);
+        setLoadingProjects(false);
       }
     };
-
-    loadData();
+    loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, t]);
 
   useEffect(() => {
@@ -270,6 +263,12 @@ const LeaderRequestPayment = () => {
     }
   };
 
+  // Memoize project options for select
+  const projectOptions = useMemo(() => projects.map((project) => ({
+    value: project.id.toString(),
+    label: project.title
+  })), [projects]);
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-4xl font-bold mb-6">{t("app.leader.requestPayment.title")}</h1>
@@ -282,21 +281,29 @@ const LeaderRequestPayment = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="project">{t("app.paymentRequest.project")}</Label>
-            <Select 
+            {loadingProjects ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              projects.length === 0 ? (
+                <div className="text-center text-muted-foreground py-4">{t("app.paymentRequest.noProjectsAvailable")}</div>
+              ) : (
+                <select
+                  className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
               value={selectedProject} 
-              onValueChange={handleProjectChange}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("app.paymentRequest.selectProject")} />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id.toString()}>
-                    {project.title}
-                  </SelectItem>
+                  onChange={e => handleProjectChange(e.target.value)}
+                  disabled={loadingProjects}
+                >
+                  <option value="" disabled>{t("app.paymentRequest.selectProject")}</option>
+                  {projectOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                 ))}
-              </SelectContent>
-            </Select>
+                </select>
+              )
+            )}
           </div>
 
           {selectedProject && (
@@ -443,8 +450,8 @@ const LeaderRequestPayment = () => {
             <Input type="number" id="total" value={totalAmount.toString()} readOnly />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? t("common.loading") : t("app.paymentRequest.submit")}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? t('app.paymentRequest.submitting') : t('app.paymentRequest.submit')}
           </Button>
         </form>
       )}

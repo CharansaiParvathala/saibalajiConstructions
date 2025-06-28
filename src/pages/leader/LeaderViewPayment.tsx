@@ -3,7 +3,6 @@ import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Project } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
@@ -166,20 +165,20 @@ const LeaderViewPayment = () => {
       
       <div className="mb-6 max-w-md">
         <Label htmlFor="project-filter">{t('app.payment.filterByProject')}</Label>
-        <Select
+        {availableProjects.length === 0 ? (
+          <div className="text-center text-muted-foreground py-4">{t('app.payment.noProjectsAvailable')}</div>
+        ) : (
+          <select
+            className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
           value={selectedProject}
-          onValueChange={setSelectedProject}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={t('app.payment.selectProject')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('app.payment.allProjects')}</SelectItem>
+            onChange={e => setSelectedProject(e.target.value)}
+          >
+            <option value="all">{t('app.payment.allProjects')}</option>
             {availableProjects.map((project) => (
-              <SelectItem key={project.id} value={project.id.toString()}>{project.title}</SelectItem>
+              <option key={project.id} value={project.id.toString()}>{project.title}</option>
             ))}
-          </SelectContent>
-        </Select>
+          </select>
+        )}
       </div>
       
       <div className="grid gap-6">
@@ -194,12 +193,12 @@ const LeaderViewPayment = () => {
                   <div>
                     <CardTitle>{formatDate(date)}</CardTitle>
               <CardDescription>
-                      {payments.length} {payments.length === 1 ? 'payment request' : 'payment requests'}
+                      {payments.length} {t(payments.length === 1 ? 'app.payment.singleRequest' : 'app.payment.multipleRequests')}
               </CardDescription>
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold">₹ {Number(totalAmount).toFixed(2)}</div>
-                    <div className="text-sm text-muted-foreground">Total Amount</div>
+                    <div className="text-sm text-muted-foreground">{t('app.payment.totalAmount')}</div>
                   </div>
                 </div>
             </CardHeader>
@@ -211,7 +210,7 @@ const LeaderViewPayment = () => {
                 <div>
                           <h3 className="font-medium">{payment.description}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {payment.expenses ? `${payment.expenses.length} expense(s)` : 'No expenses'}
+                            {payment.expenses ? t('app.payment.paymentRequestForExpenses') : t('app.payment.noExpenses')}
                           </p>
                         </div>
                         <div className="text-right">
@@ -219,7 +218,7 @@ const LeaderViewPayment = () => {
                   <div className="mt-1">{getStatusBadge(payment.status)}</div>
                           {(checkerNotes[payment.id] || payment.checkerNotes || payment.comment) && (
                             <div className="text-xs text-muted-foreground mt-1">
-                              Checker Notes: {checkerNotes[payment.id] || payment.checkerNotes || payment.comment}
+                              {t('app.payment.checkerNotes')}: {checkerNotes[payment.id] || payment.checkerNotes || payment.comment}
                             </div>
                           )}
                         </div>
@@ -235,12 +234,12 @@ const LeaderViewPayment = () => {
                                 {imageUrl ? (
                                   <img
                                     src={imageUrl}
-                                    alt={`Payment proof ${index + 1}`}
+                                    alt={t('app.payment.proofImage')}
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    Loading...
+                                    {t('app.common.loading')}
                                   </div>
                                 )}
                               </div>

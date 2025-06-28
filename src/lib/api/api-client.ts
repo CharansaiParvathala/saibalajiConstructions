@@ -1,7 +1,9 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../types';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? '/api' 
+  : 'http://localhost:3001/api';
 
 // Create axios instance with default config
 const axiosInstance = axios.create({
@@ -122,8 +124,13 @@ export const getCurrentUser = async (): Promise<User> => {
 };
 
 // Projects API
-export const getProjects = async (): Promise<Project[]> => {
-  return apiRequest<Project[]>('/projects');
+export const getProjects = async (filters?: { status?: string; notCompleted?: boolean }): Promise<Project[]> => {
+  let params: Record<string, string> = {};
+  if (filters) {
+    if (filters.status) params.status = filters.status;
+    if (filters.notCompleted) params.notCompleted = 'true';
+  }
+  return apiRequest<Project[]>('/projects', { params });
 };
 
 export const getProjectById = async (id: number): Promise<Project> => {

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 // Import language files
@@ -17,7 +16,7 @@ export interface LanguageOption {
 interface LanguageContextType {
   language: Language;
   setLanguage: (language: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, any>) => string;
   languageOptions: LanguageOption[];
 }
 
@@ -43,6 +42,12 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 export const useLanguage = () => useContext(LanguageContext);
+
+// Add interpolation helper
+const interpolate = (str: string, vars?: Record<string, any>) => {
+  if (!vars) return str;
+  return str.replace(/{{(.*?)}}/g, (_, v) => (vars[v.trim()] !== undefined ? vars[v.trim()] : `{{${v}}}`));
+};
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
@@ -100,13 +105,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return typeof result === 'string' ? result : path;
   };
 
-  const translate = (key: string): string => {
+  // Update translate to support variables
+  const translate = (key: string, vars?: Record<string, any>): string => {
     if (!key) return '';
-    
     const currentTranslations = translations[language];
     const translated = getNestedTranslation(currentTranslations, key);
-    
-    return translated;
+    return interpolate(translated, vars);
   };
 
   const setLanguage = (newLanguage: Language) => {

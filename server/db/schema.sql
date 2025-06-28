@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS projects (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
     leader_id INT NOT NULL,
     status ENUM('active', 'pending', 'completed', 'cancelled') DEFAULT 'active',

@@ -3,9 +3,9 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileOutput, Image } from 'lucide-react';
+import { FileOutput, Image, FileText } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { getProjects, getProjectExportData } from '@/lib/api/api-client';
+import { getProjects, getProjectExportData, getFinalSubmissions, getPaymentRequestsByProjectId, deleteProject } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
 import { exportProjectDataToPDF } from '@/utils/pdf-export';
 import { exportProjectImages } from '@/utils/image-export';
@@ -33,6 +33,11 @@ const AdminExportData = () => {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [customAspectRatio, setCustomAspectRatio] = useState({ width: '', height: '' });
+  const [completedProjects, setCompletedProjects] = useState<Project[]>([]);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
+  const [deletableProjects, setDeletableProjects] = useState<Project[]>([]);
+  const [selectedDeletableProject, setSelectedDeletableProject] = useState<Project | null>(null);
+  const [loadingDeletable, setLoadingDeletable] = useState(false);
 
   // Redirect if not admin
   useEffect(() => {
@@ -59,6 +64,56 @@ const AdminExportData = () => {
       loadData();
     }
   }, [t, user]);
+
+  // Load completed projects
+  useEffect(() => {
+    const loadCompletedProjects = async () => {
+      setLoadingCompleted(true);
+      try {
+        const allProjects = await getProjects();
+        const completed: Project[] = [];
+        for (const project of allProjects) {
+          // Check for final submission
+          const finalSubs = await getFinalSubmissions(project.id);
+          const hasCompletedFinal = finalSubs.some((fs: any) => fs.status === 'completed');
+          if (!hasCompletedFinal) continue;
+          // Check for payment requests with status 'paid' or 'approved'
+          const payments = await getPaymentRequestsByProjectId(project.id);
+          const hasPaid = payments.some((p: any) => p.status === 'paid' || p.status === 'approved');
+          if (hasPaid) completed.push(project);
+        }
+        setCompletedProjects(completed);
+      } catch (err) {
+        toast.error(t('common.error'));
+      } finally {
+        setLoadingCompleted(false);
+      }
+    };
+    if (user?.role === 'admin') loadCompletedProjects();
+  }, [user, t]);
+
+  // Load deletable projects (all payment requests must be paid)
+  useEffect(() => {
+    const loadDeletableProjects = async () => {
+      setLoadingDeletable(true);
+      try {
+        const allProjects = await getProjects();
+        const eligible: Project[] = [];
+        for (const project of allProjects) {
+          const payments = await getPaymentRequestsByProjectId(project.id);
+          if (payments.length === 0) continue;
+          const allPaid = payments.every((p: any) => p.status === 'paid');
+          if (allPaid) eligible.push(project);
+        }
+        setDeletableProjects(eligible);
+      } catch (err) {
+        toast.error(t('common.error'));
+      } finally {
+        setLoadingDeletable(false);
+      }
+    };
+    if (user?.role === 'admin') loadDeletableProjects();
+  }, [user, t]);
 
   const handleExportProjectPdf = async () => {
     if (!selectedProjectForExport) return;
@@ -156,6 +211,19 @@ const AdminExportData = () => {
     }
   };
 
+  const handleDeleteSelectedProject = async () => {
+    if (!selectedDeletableProject) return;
+    if (!window.confirm(t('app.admin.tender.confirmDeleteProject'))) return;
+    try {
+      await deleteProject(selectedDeletableProject.id);
+      setDeletableProjects(prev => prev.filter(p => p.id !== selectedDeletableProject.id));
+      setSelectedDeletableProject(null);
+      toast.success(t('app.admin.tender.deleteSuccess'));
+    } catch (err) {
+      toast.error(t('app.admin.tender.deleteError'));
+    }
+  };
+
   if (loading.initial) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -166,57 +234,103 @@ const AdminExportData = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t('app.export.title')}</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.admin.tender.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        {t('app.export.description')}
+        {t('app.admin.tender.description')}
       </p>
       
       <div className="grid gap-6">
+        {/* Deletable Projects Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('app.admin.tender.completedProjects')}</CardTitle>
+            <CardDescription>{t('app.admin.tender.completedProjectsDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingDeletable ? (
+              <div className="flex items-center justify-center h-24">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : deletableProjects.length === 0 ? (
+              <div className="text-muted-foreground text-center">{t('app.admin.tender.noCompletedProjects')}</div>
+            ) : (
+              <div className="space-y-4">
+                <Label htmlFor="deletable-project-select">{t('app.admin.tender.selectProjectToDelete')}</Label>
+                <select
+                  id="deletable-project-select"
+                  className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+                  value={selectedDeletableProject?.id || ''}
+                  onChange={e => {
+                    const project = deletableProjects.find(p => p.id.toString() === e.target.value);
+                    setSelectedDeletableProject(project || null);
+                  }}
+                >
+                  <option value="" disabled>{t('app.admin.tender.chooseProjectToDelete')}</option>
+                  {deletableProjects.map(project => (
+                    <option key={project.id} value={project.id}>{project.title}</option>
+                  ))}
+                </select>
+                {selectedDeletableProject && (
+                  <div className="flex items-center justify-between mt-4">
+                    <span>{selectedDeletableProject.title}</span>
+                    <Button variant="destructive" size="sm" onClick={handleDeleteSelectedProject}>
+                      {t('app.admin.tender.deleteProject')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
         {/* Project-Based Export Section */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('app.export.projectBasedExport')}</CardTitle>
+            <CardTitle>{t('app.admin.tender.projectBasedExport')}</CardTitle>
             <CardDescription>
-              {t('app.export.projectBasedExportDesc')}
+              {t('app.admin.tender.projectBasedExportDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="project-export">{t('app.export.selectProject')}</Label>
-                <Select
-                  value={selectedProjectForExport?.id?.toString()}
-                  onValueChange={(value) => {
-                    const project = projects.find(p => p.id.toString() === value);
+                <Label htmlFor="project-export">{t('app.admin.tender.selectProject')}</Label>
+                <select
+                  className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+                  value={selectedProjectForExport?.id?.toString() || ''}
+                  onChange={e => {
+                    const project = projects.find(p => p.id.toString() === e.target.value);
                     setSelectedProjectForExport(project || null);
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('app.export.chooseProjectToExport')} />
-                  </SelectTrigger>
-                  <SelectContent>
+                  <option value="" disabled>{t('app.admin.tender.chooseProjectToExport')}</option>
                     {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id.toString()}>
+                    <option key={project.id} value={project.id.toString()}>
                         {project.title}
-                      </SelectItem>
+                    </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                </select>
               </div>
               <Button
                 onClick={handleExportProjectPdf}
                 disabled={loading.projectPdf || loading.initial || !selectedProjectForExport}
                 >
                 <FileOutput className="mr-2 h-4 w-4" />
-                {loading.projectPdf ? t('common.generating') : t('app.export.exportProjectReport')}
+                {loading.projectPdf ? t('common.generating') : t('app.admin.tender.exportProjectReport')}
               </Button>
-              </div>
+              <Button
+                variant="outline"
+                onClick={() => window.open('https://www.ilovepdf.com/pdf_to_word', '_blank')}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Convert to Word
+              </Button>
+            </div>
           </CardContent>
         </Card>
         {/* Image Export Section */}
           <Card>
             <CardHeader>
-            <CardTitle>{t('app.export.imageExport')}</CardTitle>
+            <CardTitle>{t('app.admin.tender.imageExport')}</CardTitle>
               <CardDescription>
               Export project images with custom aspect ratios
               </CardDescription>
@@ -224,49 +338,42 @@ const AdminExportData = () => {
             <CardContent>
               <div className="space-y-4">
                 <div className="space-y-2">
-                <Label htmlFor="project-image-export">{t('app.export.selectProject')}</Label>
-                  <Select
-                    value={selectedProject?.id?.toString()}
-                    onValueChange={(value) => {
-                      const project = projects.find(p => p.id.toString() === value);
+                <Label htmlFor="project-image-export">{t('app.admin.tender.selectProject')}</Label>
+                  <select
+                    className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
+                    value={selectedProject?.id?.toString() || ''}
+                    onChange={e => {
+                      const project = projects.find(p => p.id.toString() === e.target.value);
                       setSelectedProject(project || null);
                     }}
                   >
-                    <SelectTrigger>
-                    <SelectValue placeholder="Choose a project" />
-                    </SelectTrigger>
-                    <SelectContent>
+                    <option value="" disabled>Choose a project</option>
                       {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id.toString()}>
+                      <option key={project.id} value={project.id.toString()}>
                           {project.title}
-                        </SelectItem>
+                      </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                  </select>
                 </div>
                       <div className="space-y-2">
-                <Label htmlFor="aspect-ratio-select">{t('app.export.aspectRatio')}</Label>
-                <Select
+                <Label htmlFor="aspect-ratio-select">{t('app.admin.tender.aspectRatio')}</Label>
+                <select
+                  className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white"
                           value={aspectRatio}
-                          onValueChange={setAspectRatio}
+                  onChange={e => setAspectRatio(e.target.value)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose aspect ratio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="original">Original</SelectItem>
-                    <SelectItem value="16:9">16:9</SelectItem>
-                    <SelectItem value="4:3">4:3</SelectItem>
-                    <SelectItem value="1:1">1:1</SelectItem>
-                    <SelectItem value="3:2">3:2</SelectItem>
-                    <SelectItem value="2:3">2:3</SelectItem>
-                    <SelectItem value="9:16">9:16</SelectItem>
-                    <SelectItem value="21:9">21:9</SelectItem>
-                    <SelectItem value="5:4">5:4</SelectItem>
-                    <SelectItem value="4:5">4:5</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="original">Original</option>
+                  <option value="16:9">16:9</option>
+                  <option value="4:3">4:3</option>
+                  <option value="1:1">1:1</option>
+                  <option value="3:2">3:2</option>
+                  <option value="2:3">2:3</option>
+                  <option value="9:16">9:16</option>
+                  <option value="21:9">21:9</option>
+                  <option value="5:4">5:4</option>
+                  <option value="4:5">4:5</option>
+                  <option value="custom">Custom</option>
+                </select>
                 {aspectRatio === 'custom' && (
                   <div className="flex gap-2 mt-2">
                     <input type="number" min="1" placeholder="Width" value={customAspectRatio.width} onChange={e => setCustomAspectRatio({ ...customAspectRatio, width: e.target.value })} className="border rounded p-1 w-20" />
@@ -280,7 +387,7 @@ const AdminExportData = () => {
                   disabled={loading.image || loading.initial || !selectedProject}
                 >
                   <Image className="mr-2 h-4 w-4" />
-                {loading.image ? t('common.generating') : t('app.export.exportImages')}
+                {loading.image ? t('common.generating') : t('app.admin.tender.exportImages')}
               </Button>
               <Button
                 onClick={handleExportFinalImages}

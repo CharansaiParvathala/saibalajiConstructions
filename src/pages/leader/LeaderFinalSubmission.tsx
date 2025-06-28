@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/api/api-client';
 import { Project, PhotoWithMetadata } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
 const LeaderFinalSubmission = () => {
   const { user } = useAuth();
@@ -35,6 +36,7 @@ const LeaderFinalSubmission = () => {
   const [currentSubmissionId, setCurrentSubmissionId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [timerResumed, setTimerResumed] = useState<boolean>(false);
+  const [loadingProjects, setLoadingProjects] = useState<boolean>(true);
 
   useEffect(() => {
     if (user) {
@@ -44,36 +46,23 @@ const LeaderFinalSubmission = () => {
 
   const loadProjects = async () => {
     try {
-      setIsLoading(true);
+      setLoadingProjects(true);
       const allProjects = await getProjects();
       // Filter only completed projects (100% work done or at least 95% complete)
       const completedProjects = allProjects.filter(project => 
         project.completed_work >= project.total_work || (project.completed_work / project.total_work) >= 0.95
       );
-      
-      // Filter out projects that already have completed final submissions
-      const availableProjects = [];
-      for (const project of completedProjects) {
-        const submissions = await getFinalSubmissions(project.id);
-        const hasCompletedSubmission = submissions.some(sub => sub.status === 'completed');
-        
-        if (!hasCompletedSubmission) {
-          availableProjects.push(project);
-        }
-      }
-      
-      setProjects(availableProjects);
-      
-      if (availableProjects.length > 0) {
-        setSelectedProject(availableProjects[0].id);
-        
-        // Check for active timers across all completed projects
-        await checkForActiveTimersAcrossProjects(availableProjects);
+      setProjects(completedProjects);
+      if (completedProjects.length > 0) {
+        setSelectedProject(completedProjects[0].id);
+        // Only check for active timers for the first project
+        await checkForActiveTimersAcrossProjects([completedProjects[0]]);
       }
     } catch (error) {
       console.error('Error loading projects:', error);
       toast.error('Failed to load projects');
     } finally {
+      setLoadingProjects(false);
       setIsLoading(false);
     }
   };
@@ -310,31 +299,37 @@ const LeaderFinalSubmission = () => {
     }
   };
 
+  // Memoize project options for select
+  const projectOptions = useMemo(() => projects.map((project) => ({
+    value: project.id.toString(),
+    label: `${project.title} - ${project.completed_work}/${project.total_work} completed`
+  })), [projects]);
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4">
         <Card>
           <CardContent className="flex items-center justify-center p-8">
-            <div>Loading projects...</div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  if (projects.length === 0) {
+  if (!isLoading && projects.length === 0) {
     return (
       <div className="container mx-auto p-4">
         <Card>
           <CardHeader>
-            <CardTitle>No Completed Projects</CardTitle>
+            <CardTitle>{t('app.leader.finalSubmission.noCompletedProjectsTitle') || 'No Completed Projects'}</CardTitle>
             <CardDescription>
-              You don't have any completed projects to submit final images for.
+              {t('app.leader.finalSubmission.noCompletedProjects')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={() => navigate('/leader')} className="w-full">
-              Return to Dashboard
+              {t('app.leader.finalSubmission.returnToDashboard')}
             </Button>
           </CardContent>
         </Card>
@@ -343,100 +338,103 @@ const LeaderFinalSubmission = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">Final Project Submission</h1>
+    <div className="w-full max-w-full px-1 py-2 sm:px-4 overflow-x-auto">
+      <h1 className="text-4xl font-bold mb-6">{t('app.leader.finalSubmission.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        Upload final project images for completed projects
+        {t('app.leader.finalSubmission.description')}
       </p>
 
-      <div className="grid gap-6">
-        <Card>
+      <div className="grid gap-3 sm:gap-6 w-full min-w-0">
+        <Card className="w-full min-w-0">
           <CardHeader>
-            <CardTitle>Project Selection</CardTitle>
+            <CardTitle>{t('app.leader.finalSubmission.projectSelection')}</CardTitle>
             <CardDescription>
-              Select a completed project to upload final images
+              {t('app.leader.finalSubmission.selectProjectDescription')}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="w-full min-w-0">
+            {loadingProjects ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
             <select
               value={selectedProject || ''}
               onChange={async (e) => {
                 const newProjectId = parseInt(e.target.value);
                 setSelectedProject(newProjectId);
-                
-                // Reset timer state when changing projects
                 setTimerActive(false);
                 setTimeRemaining(600);
                 setCurrentSubmissionId(null);
                 setCompletionPhotos([]);
                 setTimerResumed(false);
-                
-                // Check if there's an active timer for the new project
                 await checkForActiveTimersAcrossProjects(projects.filter(p => p.id === newProjectId));
               }}
-              className="w-full p-2 border rounded"
-              disabled={timerActive}
+                className="w-full p-2 border rounded bg-white dark:bg-[#23272f] dark:text-white min-w-0"
+                disabled={timerActive || loadingProjects}
             >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title} - {project.completed_work}/{project.total_work} completed
+                {projectOptions.map((option) => (
+                  <option key={option.value} value={option.value} className="truncate">
+                    {option.label}
                 </option>
               ))}
             </select>
+            )}
           </CardContent>
         </Card>
 
         {selectedProject && !timerActive && (
-          <Card>
+          <Card className="w-full min-w-0">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <CheckCircle className="mr-2 h-5 w-5 text-green-500" />
-                Ready to Upload Final Images
+                {t('app.leader.finalSubmission.readyToUpload')}
               </CardTitle>
               <CardDescription>
-                You'll have 10 minutes to upload multiple images for this project
+                {t('app.leader.finalSubmission.readyToUploadDescription')}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="w-full min-w-0">
               <Button onClick={startCompletionTimer} className="w-full">
-                Start Photo Upload Timer
+                {t('app.leader.finalSubmission.startTimer')}
               </Button>
             </CardContent>
           </Card>
         )}
 
         {timerActive && (
-          <Card>
+          <Card className="w-full min-w-0">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Clock className="mr-2 h-5 w-5" />
-                Time Remaining: {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                {t('app.leader.finalSubmission.timeRemaining', { time: `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60).toString().padStart(2, '0')}` })}
                 {timerResumed && (
                   <Badge className="ml-2 bg-blue-100 text-blue-800 border-blue-300">
-                    Resumed
+                    {t('app.leader.finalSubmission.resumed')}
                   </Badge>
                 )}
               </CardTitle>
               <CardDescription>
-                Upload final project images before time runs out
-                {timerResumed && " - Timer resumed from previous session"}
+                {t('app.leader.finalSubmission.uploadBeforeTimeout')}
+                {timerResumed && ` - ${t('app.leader.finalSubmission.timerResumed')}`}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-1 sm:px-4 w-full min-w-0">
               <div className="space-y-4">
                 <Progress value={(timeRemaining / 600) * 100} className="w-full" />
                 <Button onClick={handleCompletionPhotoUpload} className="w-full">
                   <Upload className="mr-2 h-4 w-4" />
-                  Upload Final Project Images
+                  {t('app.leader.finalSubmission.uploadImages')}
                 </Button>
                 {completionPhotos.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full min-w-0">
                     {completionPhotos.map((photo, index) => (
-                      <div key={index} className="relative">
+                      <div key={index} className="relative w-full min-w-0">
                         <img
                           src={photo.dataUrl}
                           alt={`Final project photo ${index + 1}`}
-                          className="w-full h-32 object-cover rounded"
+                          className="w-full h-32 object-cover rounded max-w-full"
+                          style={{ maxWidth: '100%' }}
                         />
                         <button
                           onClick={() => handleRemoveCompletionPhoto(index)}
@@ -445,7 +443,7 @@ const LeaderFinalSubmission = () => {
                         >
                           ×
                         </button>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1">
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 break-words w-full min-w-0">
                           {new Date(photo.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
@@ -457,28 +455,26 @@ const LeaderFinalSubmission = () => {
           </Card>
         )}
 
-        <Card>
+        <Card className="w-full min-w-0">
           <CardHeader>
-            <CardTitle>Additional Notes</CardTitle>
-            <CardDescription>
-              Add any additional notes about the final project submission
-            </CardDescription>
+            <CardTitle>{t('app.leader.finalSubmission.additionalNotes')}</CardTitle>
+            <CardDescription>{t('app.leader.finalSubmission.additionalNotesDescription')}</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="w-full min-w-0">
             <Textarea
-              placeholder="Enter any additional notes..."
+              placeholder={t('app.leader.finalSubmission.additionalNotesPlaceholder')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[100px]"
+              className="min-h-[100px] w-full min-w-0 break-words"
             />
           </CardContent>
-          <CardFooter>
+          <CardFooter className="px-1 sm:px-4 w-full min-w-0">
             <Button 
               onClick={handleSubmit} 
-              className="w-full"
+              className="w-full min-w-0"
               disabled={isSubmitting || timerActive || completionPhotos.length === 0}
             >
-              {isSubmitting ? "Submitting..." : "Submit Final Project"}
+              {isSubmitting ? t('app.leader.finalSubmission.submitting') : t('app.leader.finalSubmission.submit')}
             </Button>
           </CardFooter>
         </Card>

@@ -151,12 +151,12 @@ const LeaderPaymentDetails = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold">₹ {Number(payment.total_amount || 0).toFixed(2)}</div>
-                  <div className="text-sm text-muted-foreground">Total Amount</div>
+                  <div className="text-sm text-muted-foreground">{t('app.payment.totalAmount')}</div>
                   <div className="mt-2">
                     {getStatusBadge(payment.status)}
                     {checkerNote && (
                       <div className="mt-2 mx-auto max-w-xl p-3 border rounded text-sm whitespace-pre-line break-words text-center bg-background border-border text-foreground dark:bg-neutral-900 dark:border-neutral-700 dark:text-neutral-100">
-                        <strong>Checker Notes:</strong>
+                        <strong>{t('app.payment.checkerNotes')}:</strong>
                         <div>{checkerNote}</div>
                       </div>
                     )}
@@ -169,18 +169,18 @@ const LeaderPaymentDetails = () => {
           {/* Payment Expenses */}
           {payment.expenses && payment.expenses.length > 0 ? (
             <div className="space-y-6">
-              <h2 className="text-2xl font-semibold">Expense Details</h2>
+              <h2 className="text-2xl font-semibold">{t('app.payment.expenseDetails')}</h2>
               {payment.expenses.map((expense: any, index: number) => (
                 <Card key={index}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
                         <CardTitle className="text-lg">{expense.expense_type}</CardTitle>
-                        <CardDescription>Expense #{index + 1}</CardDescription>
+                        <CardDescription>{t('app.payment.expenseNumber')}</CardDescription>
                       </div>
                       <div className="text-right">
                         <div className="text-xl font-bold">₹ {Number(expense.amount).toFixed(2)}</div>
-                        <div className="text-sm text-muted-foreground">Amount</div>
+                        <div className="text-sm text-muted-foreground">{t('app.payment.amount')}</div>
                       </div>
                     </div>
                   </CardHeader>
@@ -189,7 +189,7 @@ const LeaderPaymentDetails = () => {
                       {/* Remarks */}
                       {expense.remarks && (
                         <div className="bg-muted p-3 rounded-md text-sm text-foreground dark:bg-neutral-800 dark:text-neutral-200">
-                          <h4 className="text-sm font-medium mb-2">Remarks</h4>
+                          <h4 className="text-sm font-medium mb-2">{t('app.payment.remarks')}</h4>
                           <p>{expense.remarks}</p>
                         </div>
                       )}
@@ -197,7 +197,7 @@ const LeaderPaymentDetails = () => {
                       {/* Images for this specific expense */}
                       {expense.image_ids && expense.image_ids.length > 0 && (
                         <div>
-                          <h4 className="text-sm font-medium text-gray-700 mb-2">Proof Images</h4>
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">{t('app.payment.proofImages')}</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                             {expense.image_ids.map((imageId: number, imgIndex: number) => {
                               const imageKey = `expense-${expense.id}-${imageId}`;
@@ -207,12 +207,12 @@ const LeaderPaymentDetails = () => {
                                   {imageUrl ? (
                                     <img
                                       src={imageUrl}
-                                      alt={`Expense proof ${imgIndex + 1}`}
+                                      alt={t('app.payment.expenseProofImage')}
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                      Loading...
+                                      {t('app.common.loading')}
                                     </div>
                                   )}
                                 </div>
@@ -230,21 +230,21 @@ const LeaderPaymentDetails = () => {
             // Fallback for old format (no expenses array)
             <Card>
               <CardHeader>
-                <CardTitle>Payment Details</CardTitle>
-                <CardDescription>General payment information</CardDescription>
+                <CardTitle>{t('app.payment.paymentDetails')}</CardTitle>
+                <CardDescription>{t('app.payment.generalPaymentInfo')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {/* Amount */}
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Amount</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">{t('app.payment.amount')}</h4>
                     <p className="text-lg font-semibold text-gray-900">₹ {Number(payment.total_amount || 0).toFixed(2)}</p>
                   </div>
                   
                   {/* Description/Remarks */}
                   {payment.description && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Description</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('app.payment.description')}</h4>
                       <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">{payment.description}</p>
                     </div>
                   )}
@@ -252,7 +252,7 @@ const LeaderPaymentDetails = () => {
                   {/* Images */}
                   {payment.image_ids && payment.image_ids.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Proof Images</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('app.payment.proofImages')}</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         {payment.image_ids.map((imageId: number, index: number) => {
                           const imageKey = `payment-${payment.id}-${imageId}`;
@@ -262,12 +262,12 @@ const LeaderPaymentDetails = () => {
                               {imageUrl ? (
                                 <img
                                   src={imageUrl}
-                                  alt={`Payment proof ${index + 1}`}
+                                  alt={t('app.payment.proofImage')}
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                  Loading...
+                                  {t('app.common.loading')}
                                 </div>
                               )}
                             </div>

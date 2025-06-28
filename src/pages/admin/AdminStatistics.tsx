@@ -53,7 +53,7 @@ const AdminStatistics = () => {
   if (loading) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-4xl font-bold mb-6">{t("app.admin.statistics.title")}</h1>
+        <h1 className="text-4xl font-bold mb-6">{t('app.admin.statistics.title')}</h1>
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -81,7 +81,7 @@ const AdminStatistics = () => {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-4xl font-bold mb-6">{t("app.admin.statistics.title")}</h1>
+        <h1 className="text-4xl font-bold mb-6">{t('app.admin.statistics.title')}</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">Error: {error}</p>
         </div>
@@ -92,7 +92,7 @@ const AdminStatistics = () => {
   if (!statistics) {
     return (
       <div className="container mx-auto p-4">
-        <h1 className="text-4xl font-bold mb-6">{t("app.admin.statistics.title")}</h1>
+        <h1 className="text-4xl font-bold mb-6">{t('app.admin.statistics.title')}</h1>
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800">No statistics data available</p>
         </div>
@@ -340,33 +340,31 @@ const AdminStatistics = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t("app.admin.statistics.title")}</h1>
-      <p className="text-muted-foreground mb-8">
-        Comprehensive progress and payment analysis
-      </p>
+      <h1 className="text-4xl font-bold mb-6">{t('app.admin.statistics.title')}</h1>
+      <p className="text-muted-foreground mb-8">{t('app.admin.statistics.description')}</p>
 
       {/* Enhanced Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('app.admin.statistics.totalProjects')}</CardTitle>
             <Badge variant="secondary">{statistics.projectStats?.total_projects || 12}</Badge>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{statistics.projectStats?.total_projects || 12}</div>
             <div className="flex items-center space-x-2 mt-2">
-              <Badge variant="outline" className="text-green-600">Active: {statistics.projectStats?.active_projects || 8}</Badge>
-              <Badge variant="outline" className="text-blue-600">Completed: {statistics.projectStats?.completed_projects || 4}</Badge>
+              <Badge variant="outline" className="text-green-600">{t('app.admin.statistics.activeProjects')}: {statistics.projectStats?.active_projects || 8}</Badge>
+              <Badge variant="outline" className="text-blue-600">{t('app.admin.statistics.completedProjects')}: {statistics.projectStats?.completed_projects || 4}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Avg size: {Math.round(statistics.projectStats?.avg_project_size || 450)} units
+              {t('app.admin.statistics.avgProjectSize', { size: Math.round(statistics.projectStats?.avg_project_size || 450) })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Work Completion</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('app.admin.statistics.workCompletion')}</CardTitle>
             <Badge variant="secondary">{Math.round(statistics.projectStats?.overall_completion_percentage || 75)}%</Badge>
           </CardHeader>
           <CardContent>
@@ -374,7 +372,7 @@ const AdminStatistics = () => {
               {Math.round(statistics.projectStats?.total_work_completed || 5400)}
             </div>
             <p className="text-xs text-muted-foreground">
-              of {Math.round(statistics.projectStats?.total_work_planned || 7200)} units planned
+              {t('app.admin.statistics.ofPlanned', { planned: Math.round(statistics.projectStats?.total_work_planned || 7200) })}
             </p>
             <Progress 
               value={statistics.projectStats?.overall_completion_percentage || 75} 
@@ -385,7 +383,7 @@ const AdminStatistics = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Payment Requests</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('app.admin.statistics.paymentRequests')}</CardTitle>
             <Badge variant="secondary">{paymentAnalytics.total_payment_requests}</Badge>
           </CardHeader>
           <CardContent>
@@ -393,18 +391,18 @@ const AdminStatistics = () => {
               ₹{Math.round(paymentAnalytics.total_amount_requested / 1000)}K
             </div>
             <div className="flex items-center space-x-2 mt-2">
-              <Badge variant="outline" className="text-green-600">Approved: {paymentAnalytics.approved_requests}</Badge>
-              <Badge variant="outline" className="text-yellow-600">Pending: {paymentAnalytics.pending_requests}</Badge>
+              <Badge variant="outline" className="text-green-600">{t('app.admin.statistics.approved')}: {paymentAnalytics.approved_requests}</Badge>
+              <Badge variant="outline" className="text-yellow-600">{t('app.admin.statistics.pending')}: {paymentAnalytics.pending_requests}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Avg: ₹{Math.round(paymentAnalytics.avg_payment_amount)} per request
+              {t('app.admin.statistics.avgPerRequest', { amount: Math.round(paymentAnalytics.avg_payment_amount) })}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('app.admin.statistics.activeUsers')}</CardTitle>
             <Badge variant="secondary">{userData.length}</Badge>
           </CardHeader>
           <CardContent>
@@ -412,10 +410,10 @@ const AdminStatistics = () => {
               {userData.length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {userData.filter((u: any) => u.updates > 0).length} with activity
+              {t('app.admin.statistics.withActivity', { count: userData.filter((u: any) => u.updates > 0).length })}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Top performer: {userData[0]?.name || 'N/A'}
+              {t('app.admin.statistics.topPerformer', { name: userData[0]?.name || 'N/A' })}
             </p>
           </CardContent>
         </Card>
@@ -423,18 +421,18 @@ const AdminStatistics = () => {
       
       <Tabs defaultValue="overview" className="mb-8">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="efficiency">Efficiency</TabsTrigger>
+          <TabsTrigger value="overview">{t('app.admin.statistics.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="payments">{t('app.admin.statistics.tabs.payments')}</TabsTrigger>
+          <TabsTrigger value="users">{t('app.admin.statistics.tabs.users')}</TabsTrigger>
+          <TabsTrigger value="efficiency">{t('app.admin.statistics.tabs.efficiency')}</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Monthly Progress Overview</CardTitle>
-                <CardDescription>Completed work vs progress updates by month</CardDescription>
+                <CardTitle>{t('app.admin.statistics.monthlyProgressOverview')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.monthlyProgressOverviewDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -445,8 +443,8 @@ const AdminStatistics = () => {
                     <YAxis yAxisId="right" orientation="right" />
                       <Tooltip />
                       <Legend />
-                    <Bar yAxisId="left" dataKey="total_completed_work" fill="#8884d8" name="Completed Work" />
-                    <Line yAxisId="right" type="monotone" dataKey="total_progress_updates" stroke="#82ca9d" name="Progress Updates" />
+                    <Bar yAxisId="left" dataKey="total_completed_work" fill="#8884d8" name={t('app.admin.statistics.completedWork')} />
+                    <Line yAxisId="right" type="monotone" dataKey="total_progress_updates" stroke="#82ca9d" name={t('app.admin.statistics.progressUpdates')} />
                   </ComposedChart>
                   </ResponsiveContainer>
               </CardContent>
@@ -454,8 +452,8 @@ const AdminStatistics = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Payment Status Distribution</CardTitle>
-                <CardDescription>Distribution of payment requests by status</CardDescription>
+                <CardTitle>{t('app.admin.statistics.paymentStatusDistribution')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.paymentStatusDistributionDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -493,8 +491,8 @@ const AdminStatistics = () => {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Expense Type Analysis</CardTitle>
-                <CardDescription>Distribution of expenses by type</CardDescription>
+                <CardTitle>{t('app.admin.statistics.expenseTypeAnalysis')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.expenseTypeAnalysisDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {expenseTypeData && expenseTypeData.length > 0 ? (
@@ -510,11 +508,11 @@ const AdminStatistics = () => {
                     </RadarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <NoDataMessage message="No expense data available" />
+                  <NoDataMessage message={t('app.admin.statistics.noExpenseDataAvailable')} />
                 )}
                 {!statistics.expenseTypeAnalysis || statistics.expenseTypeAnalysis.length === 0 ? (
                   <div className="text-xs text-gray-400 mt-2 text-center">
-                    Showing sample data - No real expense data available
+                    {t('app.admin.statistics.showingSampleData')}
                   </div>
                 ) : null}
               </CardContent>
@@ -522,8 +520,8 @@ const AdminStatistics = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Recent Payment Activity</CardTitle>
-                <CardDescription>Daily payment activity over last 30 days</CardDescription>
+                <CardTitle>{t('app.admin.statistics.recentPaymentActivity')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.recentPaymentActivityDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -533,8 +531,8 @@ const AdminStatistics = () => {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Area type="monotone" dataKey="daily_total_amount" stackId="1" stroke="#8884d8" fill="#8884d8" name="Daily Amount (₹)" />
-                    <Area type="monotone" dataKey="payment_requests_count" stackId="2" stroke="#82ca9d" fill="#82ca9d" name="Payment Requests" />
+                    <Area type="monotone" dataKey="daily_total_amount" stackId="1" stroke="#8884d8" fill="#8884d8" name={t('app.admin.statistics.dailyAmount')} />
+                    <Area type="monotone" dataKey="payment_requests_count" stackId="2" stroke="#82ca9d" fill="#82ca9d" name={t('app.admin.statistics.paymentRequestsLabel')} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -542,8 +540,8 @@ const AdminStatistics = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Payment Status Trends</CardTitle>
-                <CardDescription>Monthly payment status distribution</CardDescription>
+                <CardTitle>{t('app.admin.statistics.paymentStatusTrends')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.paymentStatusTrendsDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {filteredMonthlyPaymentData && filteredMonthlyPaymentData.length > 0 ? (
@@ -555,31 +553,31 @@ const AdminStatistics = () => {
                       <Tooltip 
                         formatter={(value: any, name: any) => [
                           value,
-                          name === 'pending_count' ? 'Pending' :
-                          name === 'approved_count' ? 'Approved' :
-                          name === 'rejected_count' ? 'Rejected' :
-                          name === 'scheduled_count' ? 'Scheduled' :
-                          name === 'paid_count' ? 'Paid' : name
+                          name === 'pending_count' ? t('app.admin.statistics.pending') :
+                          name === 'approved_count' ? t('app.admin.statistics.approved') :
+                          name === 'rejected_count' ? t('app.admin.statistics.rejected') :
+                          name === 'scheduled_count' ? t('app.admin.statistics.scheduled') :
+                          name === 'paid_count' ? t('app.admin.statistics.paid') : name
                         ]}
                       />
                       <Legend />
-                      <Bar dataKey="pending_count" stackId="a" fill="#FFBB28" name="Pending" />
-                      <Bar dataKey="approved_count" stackId="a" fill="#00C49F" name="Approved" />
-                      <Bar dataKey="rejected_count" stackId="a" fill="#FF8042" name="Rejected" />
-                      <Bar dataKey="scheduled_count" stackId="a" fill="#8884D8" name="Scheduled" />
-                      <Bar dataKey="paid_count" stackId="a" fill="#82CA9D" name="Paid" />
+                      <Bar dataKey="pending_count" stackId="a" fill="#FFBB28" name={t('app.admin.statistics.pending')} />
+                      <Bar dataKey="approved_count" stackId="a" fill="#00C49F" name={t('app.admin.statistics.approved')} />
+                      <Bar dataKey="rejected_count" stackId="a" fill="#FF8042" name={t('app.admin.statistics.rejected')} />
+                      <Bar dataKey="scheduled_count" stackId="a" fill="#8884D8" name={t('app.admin.statistics.scheduled')} />
+                      <Bar dataKey="paid_count" stackId="a" fill="#82CA9D" name={t('app.admin.statistics.paid')} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
-                  <NoDataMessage message="No payment activity found in the selected period" />
+                  <NoDataMessage message={t('app.admin.statistics.noPaymentActivityFound')} />
                 )}
                 {!statistics.monthlyPaymentTrends || statistics.monthlyPaymentTrends.length === 0 ? (
                   <div className="text-xs text-gray-400 mt-2 text-center">
-                    Showing sample data - No real payment data available
+                    {t('app.admin.statistics.showingSampleData')}
                   </div>
                 ) : filteredMonthlyPaymentData.length === 0 ? (
                   <div className="text-xs text-gray-400 mt-2 text-center">
-                    No months with payment activity found
+                    {t('app.admin.statistics.noMonthsWithPaymentActivityFound')}
                   </div>
                 ) : null}
               </CardContent>
@@ -591,8 +589,8 @@ const AdminStatistics = () => {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>User Performance</CardTitle>
-                <CardDescription>Progress updates and work completed by user</CardDescription>
+                <CardTitle>{t('app.admin.statistics.userPerformance')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.userPerformanceDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -603,8 +601,8 @@ const AdminStatistics = () => {
                     <YAxis yAxisId="right" orientation="right" />
                     <Tooltip />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="updates" fill="#8884d8" name="Progress Updates" />
-                    <Line yAxisId="right" type="monotone" dataKey="work_completed" stroke="#82ca9d" name="Work Completed" />
+                    <Bar yAxisId="left" dataKey="updates" fill="#8884d8" name={t('app.admin.statistics.progressUpdates')} />
+                    <Line yAxisId="right" type="monotone" dataKey="work_completed" stroke="#82ca9d" name={t('app.admin.statistics.workCompleted')} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -612,8 +610,8 @@ const AdminStatistics = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>User Efficiency</CardTitle>
-                <CardDescription>Average work per update and completion rates</CardDescription>
+                <CardTitle>{t('app.admin.statistics.userEfficiency')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.userEfficiencyDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -624,8 +622,8 @@ const AdminStatistics = () => {
                     <YAxis yAxisId="right" orientation="right" />
                     <Tooltip />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="avg_work" fill="#8884d8" name="Avg Work/Update" />
-                    <Line yAxisId="right" type="monotone" dataKey="completion_rate" stroke="#82ca9d" name="Completion Rate %" />
+                    <Bar yAxisId="left" dataKey="avg_work" fill="#8884d8" name={t('app.admin.statistics.avgWorkPerUpdate')} />
+                    <Line yAxisId="right" type="monotone" dataKey="completion_rate" stroke="#82ca9d" name={t('app.admin.statistics.completionRate')} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -637,8 +635,8 @@ const AdminStatistics = () => {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Completion Rate Analysis</CardTitle>
-                <CardDescription>Distribution of progress updates by completion percentage</CardDescription>
+                <CardTitle>{t('app.admin.statistics.completionRateAnalysis')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.completionRateAnalysisDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -670,8 +668,8 @@ const AdminStatistics = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Recent Activity (30 Days)</CardTitle>
-                <CardDescription>Daily progress activity and completion rates</CardDescription>
+                <CardTitle>{t('app.admin.statistics.recentActivity')}</CardTitle>
+                <CardDescription>{t('app.admin.statistics.recentActivityDescription')}</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -681,8 +679,8 @@ const AdminStatistics = () => {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Area type="monotone" dataKey="daily_completed_work" stackId="1" stroke="#8884d8" fill="#8884d8" name="Completed Work" />
-                    <Area type="monotone" dataKey="progress_count" stackId="2" stroke="#82ca9d" fill="#82ca9d" name="Progress Updates" />
+                    <Area type="monotone" dataKey="daily_completed_work" stackId="1" stroke="#8884d8" fill="#8884d8" name={t('app.admin.statistics.completedWork')} />
+                    <Area type="monotone" dataKey="progress_count" stackId="2" stroke="#82ca9d" fill="#82ca9d" name={t('app.admin.statistics.progressUpdates')} />
                   </AreaChart>
                 </ResponsiveContainer>
               </CardContent>

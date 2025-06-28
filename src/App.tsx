@@ -37,6 +37,7 @@ import CheckerProjects from './pages/checker/CheckerProjects';
 import CheckerReviewSubmissions from './pages/checker/CheckerReviewSubmissions';
 import CheckerReviewHistory from './pages/checker/CheckerReviewHistory';
 import LeaderPaymentDetails from './pages/leader/LeaderPaymentDetails';
+import OwnerCredentials from './pages/owner/OwnerCredentials';
 
 function App() {
   const location = useLocation();
@@ -86,7 +87,7 @@ function App() {
           }
         />
         <Route
-          path="/owner/projects/:projectId"
+          path="/owner/project-details/:projectId"
           element={
             <ProtectedRoute requiredRole="owner">
               <OwnerProjectDetails />
@@ -271,6 +272,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole="owner">
           <OwnerBackupLinks />
+        </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/owner/credentials"
+          element={
+            <ProtectedRoute requiredRole="owner">
+              <OwnerCredentials />
         </ProtectedRoute>
           }
         />

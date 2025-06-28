@@ -31,7 +31,7 @@ const OwnerDashboard = () => {
   const [totalPaid, setTotalPaid] = useState(0);
   const [pendingPayments, setPendingPayments] = useState(0);
   const [expenseData, setExpenseData] = useState<any[]>([]);
-
+  
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -48,8 +48,8 @@ const OwnerDashboard = () => {
         // Calculate stats from real data
         const completed = dashboardData.projects.reduce((sum, project) => sum + safeNumber(project.completed_work), 0);
         const planned = dashboardData.projects.reduce((sum, project) => sum + safeNumber(project.total_work), 0);
-        setTotalCompletedWork(completed);
-        setTotalPlannedWork(planned);
+    setTotalCompletedWork(completed);
+    setTotalPlannedWork(planned);
         setTotalPaid(paymentSummaryData.summary.paidAmount);
         setPendingPayments(paymentSummaryData.summary.pendingCount);
         // Prepare expense data for chart (by expense type)
@@ -80,7 +80,7 @@ const OwnerDashboard = () => {
     };
     fetchDashboardData();
   }, []);
-
+  
   const getOverallProgress = () => {
     const completed = safeNumber(totalCompletedWork);
     const planned = safeNumber(totalPlannedWork);
@@ -102,7 +102,7 @@ const OwnerDashboard = () => {
     return (
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-center h-64">
-          <span>Loading dashboard data...</span>
+          <span>{t('app.owner.dashboard.loading')}</span>
         </div>
       </div>
     );
@@ -113,23 +113,23 @@ const OwnerDashboard = () => {
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <p className="text-red-500 mb-4">{error}</p>
+            <p className="text-red-500 mb-4">{t('app.owner.dashboard.error')}</p>
             <Button onClick={() => window.location.reload()}>
-              Retry
+              {t('app.owner.dashboard.retry')}
             </Button>
           </div>
         </div>
       </div>
     );
   }
-
+  
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t('owner.dashboard.title')}</h1>
+      <h1 className="text-4xl font-bold mb-6">{user?.name || 'Dashboard'}</h1>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{t('owner.dashboard.totalProjects')}</CardTitle>
+            <CardTitle className="text-lg">{t('app.owner.dashboard.totalProjects')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{projects.length}</p>
@@ -137,7 +137,7 @@ const OwnerDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{t('owner.dashboard.overallProgress')}</CardTitle>
+            <CardTitle className="text-lg">{t('app.owner.dashboard.overallProgress')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -153,7 +153,7 @@ const OwnerDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{t('owner.dashboard.pendingPayments')}</CardTitle>
+            <CardTitle className="text-lg">{t('app.owner.dashboard.pendingPayments')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{pendingPaymentCount}</p>
@@ -161,7 +161,7 @@ const OwnerDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{t('owner.dashboard.completedPayments')}</CardTitle>
+            <CardTitle className="text-lg">{t('app.owner.dashboard.completedPayments')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{completedPaymentCount}</p>
@@ -169,7 +169,7 @@ const OwnerDashboard = () => {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">{t('owner.dashboard.totalPaid')}</CardTitle>
+            <CardTitle className="text-lg">{t('app.owner.dashboard.totalPaid')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{formatCurrency(totalPaid)}</p>
@@ -179,9 +179,9 @@ const OwnerDashboard = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>{t('owner.dashboard.expensesByPurpose')}</CardTitle>
+            <CardTitle>{t('app.owner.dashboard.expensesByPurpose')}</CardTitle>
             <CardDescription>
-              {t('owner.dashboard.expensesByPurposeDesc')}
+              {t('app.owner.dashboard.expensesByPurposeDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-80">
@@ -195,7 +195,7 @@ const OwnerDashboard = () => {
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: any) => [`₹ ${value}`, 'Amount']}
+                    formatter={(value: any) => [`₹ ${value}`, t('app.owner.dashboard.amount')]}
                     labelFormatter={(name) => `${name.charAt(0).toUpperCase()}${name.slice(1)}`}
                   />
                   <Bar dataKey="amount" fill="#8884d8" name="Amount" />
@@ -203,18 +203,18 @@ const OwnerDashboard = () => {
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">{t('owner.dashboard.noExpenseData')}</p>
+                <p className="text-muted-foreground">{t('app.owner.dashboard.noExpenseData')}</p>
               </div>
             )}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>{t('owner.dashboard.monthlyPayments')}</CardTitle>
-            <CardDescription>
-              {t('owner.dashboard.monthlyPaymentsDesc')}
-            </CardDescription>
-          </CardHeader>
+                    <CardHeader>
+            <CardTitle>{t('app.owner.dashboard.monthlyPayments')}</CardTitle>
+                      <CardDescription>
+              {t('app.owner.dashboard.monthlyPaymentsDesc')}
+                      </CardDescription>
+                    </CardHeader>
           <CardContent className="h-80">
             {statistics?.monthlyPaymentTrends && statistics.monthlyPaymentTrends.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -229,19 +229,19 @@ const OwnerDashboard = () => {
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis />
                   <Tooltip 
-                    formatter={(value: any) => [`₹ ${value}`, 'Amount']}
+                    formatter={(value: any) => [`₹ ${value}`, t('app.owner.dashboard.amount')]}
                     labelFormatter={(name) => `${name}`}
                   />
                   <Bar dataKey="amount" fill="#82ca9d" name="Amount" />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (
+          ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">{t('owner.dashboard.noMonthlyPaymentData')}</p>
+                <p className="text-muted-foreground">{t('app.owner.dashboard.noMonthlyPaymentData')}</p>
               </div>
             )}
           </CardContent>
-        </Card>
+            </Card>
       </div>
     </div>
   );

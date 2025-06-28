@@ -114,6 +114,7 @@ export interface PaymentRequest {
   scheduledDate?: string;
   expenses: PaymentExpense[]; // Array of individual expenses
   image_ids?: number[]; // array of image IDs for database retrieval
+  description?: string;
 }
 
 export interface PaymentExpense {

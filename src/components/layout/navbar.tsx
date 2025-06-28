@@ -75,8 +75,8 @@ export function Navbar() {
           { name: t('app.navigation.drivers'), path: '/admin/drivers' },
           { name: t('app.navigation.statistics'), path: '/admin/statistics' },
           { name: t('app.navigation.backup'), path: '/admin/backup' },
-          { name: t('app.navigation.export'), path: '/admin/export-data' },
-          { name: 'Create Tender', path: '/admin/create-tender' }
+          { name: t('app.navigation.exportData'), path: '/admin/export-data' },
+          { name: t('app.navigation.createTender'), path: '/admin/create-tender' }
         ];
       default:
         return [];
@@ -98,8 +98,8 @@ export function Navbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-64">
               <SheetHeader>
-                <SheetTitle>Menu</SheetTitle>
-                <SheetDescription>Navigate through the application.</SheetDescription>
+                <SheetTitle>{t('app.navigation.menu')}</SheetTitle>
+                <SheetDescription>{t('app.navigation.menuDescription')}</SheetDescription>
               </SheetHeader>
               
               <div className="py-4">
@@ -163,24 +163,9 @@ export function Navbar() {
             <ModeToggle />
 
             {isAuthenticated && user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="/placeholder.svg" alt={user.name || ''} />
-                      <AvatarFallback>{user.name?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{user.name}</DropdownMenuLabel>
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>{t('app.common.logout')}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1" /></svg>
+              </Button>
             ) : (
               <div className="hidden md:flex items-center space-x-2">
                 <Button size="sm" variant="ghost" asChild>

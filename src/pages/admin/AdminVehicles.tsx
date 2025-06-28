@@ -8,15 +8,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/sonner';
 import { getVehicles, createVehicle } from '@/lib/api/api-client';
 import { Vehicle } from '@/lib/types';
-
-const VEHICLE_TYPES = [
-  { value: 'truck', label: 'Truck' },
-  { value: 'tractor', label: 'Tractor' },
-  { value: 'jcb', label: 'JCB' },
-  { value: 'other', label: 'Other' },
-];
+import { useLanguage } from '@/context/language-context';
 
 const AdminVehicles = () => {
+  const { t } = useLanguage();
+
+  const VEHICLE_TYPES = [
+    { value: 'truck', label: t('app.admin.vehicles.type.truck') },
+    { value: 'tractor', label: t('app.admin.vehicles.type.tractor') },
+    { value: 'jcb', label: t('app.admin.vehicles.type.jcb') },
+    { value: 'other', label: t('app.admin.vehicles.type.other') },
+  ];
+
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -42,13 +45,13 @@ const AdminVehicles = () => {
       const data = await getVehicles();
       setVehicles(data);
     } catch (error) {
-      toast.error('Failed to fetch vehicles');
+      toast.error(t('app.admin.vehicles.fetchError'));
     }
   };
   
   const handleAddVehicle = async () => {
     if (!type || !model) {
-      toast.error('Please fill all required fields');
+      toast.error(t('app.admin.vehicles.requiredFields'));
       return;
     }
     try {
@@ -62,18 +65,18 @@ const AdminVehicles = () => {
         fitness_cert_image: fitnessCertImage || undefined,
         fitness_cert_expiry: fitnessCertExpiry,
       });
-      toast.success('Vehicle added successfully');
+      toast.success(t('app.admin.vehicles.addSuccess'));
         setShowAddDialog(false);
         resetForm();
         loadVehicles();
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to add vehicle');
+      toast.error(error?.message || t('app.admin.vehicles.addError'));
     }
   };
   
   const handleEditVehicle = () => {
     if (!selectedVehicle || !model || !pollutionCertExpiry || !fitnessCertExpiry) {
-      toast.error("Please fill all required fields");
+      toast.error(t('app.admin.vehicles.requiredFields'));
       return;
     }
     
@@ -85,18 +88,18 @@ const AdminVehicles = () => {
         fitnessCertExpiry,
       });
       
-      toast.success("Vehicle updated successfully");
+      toast.success(t('app.admin.vehicles.updateSuccess'));
       setShowEditDialog(false);
       resetForm();
       loadVehicles();
     } catch (error) {
       console.error("Error updating vehicle:", error);
-      toast.error("Failed to update vehicle");
+      toast.error(t('app.admin.vehicles.updateError'));
     }
   };
   
   const handleDeleteVehicle = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this vehicle?')) return;
+    if (!window.confirm(t('app.admin.vehicles.deleteConfirm'))) return;
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:3001/api/auth/vehicles/${id}`, {
@@ -105,11 +108,11 @@ const AdminVehicles = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      if (!response.ok) throw new Error('Failed to delete vehicle');
-      toast.success('Vehicle deleted successfully');
+      if (!response.ok) throw new Error(t('app.admin.vehicles.deleteError'));
+      toast.success(t('app.admin.vehicles.deleteSuccess'));
       loadVehicles();
     } catch (error) {
-      toast.error('Failed to delete vehicle');
+      toast.error(t('app.admin.vehicles.deleteError'));
     }
   };
   
@@ -149,35 +152,35 @@ const AdminVehicles = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">Manage Vehicles</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.admin.vehicles.manageVehicles')}</h1>
       <p className="text-muted-foreground mb-8">
-        Add, edit, and manage vehicles in the system.
+        {t('app.admin.vehicles.manageVehiclesDescription')}
       </p>
       
       <Card>
         <CardHeader>
-          <CardTitle>Vehicles</CardTitle>
+          <CardTitle>{t('app.admin.vehicles.vehicles')}</CardTitle>
           <CardDescription>
-            Manage vehicle details
+            {t('app.admin.vehicles.manageVehicleDetails')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
-            <Button onClick={() => setShowAddDialog(true)}>Add Vehicle</Button>
+            <Button onClick={() => setShowAddDialog(true)}>{t('app.admin.vehicles.addVehicle')}</Button>
             
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RC Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pollution Cert Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fitness Cert Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RC Image</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pollution Cert Image</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fitness Cert Image</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.type')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.model')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.rcExpiry')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.pollutionCertExpiry')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.fitnessCertExpiry')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.rcImage')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.pollutionCertImage')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.fitnessCertImage')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('app.admin.vehicles.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -195,6 +198,7 @@ const AdminVehicles = () => {
                             download={vehicle.rc_image_name || `rc_${vehicle.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="underline text-blue-600 hover:text-blue-800"
                           >
                             Download
                           </a>
@@ -207,6 +211,7 @@ const AdminVehicles = () => {
                             download={vehicle.pollution_cert_image_name || `pollution_cert_${vehicle.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="underline text-blue-600 hover:text-blue-800"
                           >
                             Download
                           </a>
@@ -219,6 +224,7 @@ const AdminVehicles = () => {
                             download={vehicle.fitness_cert_image_name || `fitness_cert_${vehicle.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            className="underline text-blue-600 hover:text-blue-800"
                           >
                             Download
                           </a>
@@ -230,7 +236,7 @@ const AdminVehicles = () => {
                           size="sm"
                           onClick={() => handleDeleteVehicle(vehicle.id)}
                         >
-                          Delete
+                          {t('app.admin.vehicles.delete')}
                         </Button>
                       </td>
                     </tr>
@@ -246,55 +252,55 @@ const AdminVehicles = () => {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Vehicle</DialogTitle>
+            <DialogTitle>{t('app.admin.vehicles.addVehicle')}</DialogTitle>
             <DialogDescription>
-              Add a new vehicle to the system.
+              {t('app.admin.vehicles.addVehicleDescription')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="type" className="text-right">Type</Label>
+              <Label htmlFor="type" className="text-right">{t('app.admin.vehicles.type')}</Label>
               <select id="type" value={type} onChange={e => setType(e.target.value)} className="col-span-3 border rounded px-2 py-1">
                 {VEHICLE_TYPES.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="model" className="text-right">Model</Label>
+              <Label htmlFor="model" className="text-right">{t('app.admin.vehicles.model')}</Label>
               <Input id="model" value={model} onChange={e => setModel(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="rc_image" className="text-right">RC Image</Label>
+              <Label htmlFor="rc_image" className="text-right">{t('app.admin.vehicles.rcImage')}</Label>
               <Input id="rc_image" type="file" accept="image/*" onChange={e => setRcImage(e.target.files?.[0] || null)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="rc_expiry" className="text-right">RC Expiry</Label>
+              <Label htmlFor="rc_expiry" className="text-right">{t('app.admin.vehicles.rcExpiry')}</Label>
               <Input id="rc_expiry" type="date" value={rcExpiry} onChange={e => setRcExpiry(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pollution_cert_image" className="text-right">Pollution Cert Image</Label>
+              <Label htmlFor="pollution_cert_image" className="text-right">{t('app.admin.vehicles.pollutionCertImage')}</Label>
               <Input id="pollution_cert_image" type="file" accept="image/*" onChange={e => setPollutionCertImage(e.target.files?.[0] || null)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pollution_cert_expiry" className="text-right">Pollution Cert Expiry</Label>
+              <Label htmlFor="pollution_cert_expiry" className="text-right">{t('app.admin.vehicles.pollutionCertExpiry')}</Label>
               <Input id="pollution_cert_expiry" type="date" value={pollutionCertExpiry} onChange={e => setPollutionCertExpiry(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fitness_cert_image" className="text-right">Fitness Cert Image</Label>
+              <Label htmlFor="fitness_cert_image" className="text-right">{t('app.admin.vehicles.fitnessCertImage')}</Label>
               <Input id="fitness_cert_image" type="file" accept="image/*" onChange={e => setFitnessCertImage(e.target.files?.[0] || null)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fitness_cert_expiry" className="text-right">Fitness Cert Expiry</Label>
+              <Label htmlFor="fitness_cert_expiry" className="text-right">{t('app.admin.vehicles.fitnessCertExpiry')}</Label>
               <Input id="fitness_cert_expiry" type="date" value={fitnessCertExpiry} onChange={e => setFitnessCertExpiry(e.target.value)} className="col-span-3" />
             </div>
           </div>
           
           <DialogFooter>
             <Button variant="secondary" onClick={() => setShowAddDialog(false)}>
-              Cancel
+              {t('app.admin.vehicles.cancel')}
             </Button>
             <Button onClick={handleAddVehicle}>
-              Add Vehicle
+              {t('app.admin.vehicles.addVehicle')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -304,33 +310,33 @@ const AdminVehicles = () => {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Vehicle</DialogTitle>
+            <DialogTitle>{t('app.admin.vehicles.editVehicle')}</DialogTitle>
             <DialogDescription>
-              Edit the details of the selected vehicle.
+              {t('app.admin.vehicles.editVehicleDescription')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="model" className="text-right">Model</Label>
+              <Label htmlFor="model" className="text-right">{t('app.admin.vehicles.model')}</Label>
               <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pollutionCertExpiry" className="text-right">Pollution Cert Expiry</Label>
+              <Label htmlFor="pollutionCertExpiry" className="text-right">{t('app.admin.vehicles.pollutionCertExpiry')}</Label>
               <Input type="date" id="pollutionCertExpiry" value={pollutionCertExpiry} onChange={(e) => setPollutionCertExpiry(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="fitnessCertExpiry" className="text-right">Fitness Cert Expiry</Label>
+              <Label htmlFor="fitnessCertExpiry" className="text-right">{t('app.admin.vehicles.fitnessCertExpiry')}</Label>
               <Input type="date" id="fitnessCertExpiry" value={fitnessCertExpiry} onChange={(e) => setFitnessCertExpiry(e.target.value)} className="col-span-3" />
             </div>
           </div>
           
           <DialogFooter>
             <Button variant="secondary" onClick={() => setShowEditDialog(false)}>
-              Cancel
+              {t('app.admin.vehicles.cancel')}
             </Button>
             <Button onClick={handleEditVehicle}>
-              Update Vehicle
+              {t('app.admin.vehicles.updateVehicle')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -340,18 +346,18 @@ const AdminVehicles = () => {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Vehicle</DialogTitle>
+            <DialogTitle>{t('app.admin.vehicles.deleteVehicle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this vehicle? This action cannot be undone.
+              {t('app.admin.vehicles.deleteVehicleDescription')}
             </DialogDescription>
           </DialogHeader>
           
           <DialogFooter>
             <Button variant="secondary" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
+              {t('app.admin.vehicles.cancel')}
             </Button>
             <Button variant="destructive" onClick={() => handleDeleteVehicle(selectedVehicle?.id || 0)}>
-              Delete Vehicle
+              {t('app.admin.vehicles.deleteVehicle')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,18 +16,18 @@ import { useLanguage } from '@/context/language-context';
 import { getProjects, addProgress, updateProject, getFinalSubmissions, getVehicles, getDrivers } from '@/lib/api/api-client';
 
 // Simple component to display progress photos
-const ImageDisplay = ({ images, onRemove }: { images: PhotoWithMetadata[], onRemove: (index: number) => void }) => {
+const ImageDisplay = ({ images, onRemove, t }: { images: PhotoWithMetadata[], onRemove: (index: number) => void, t: (key: string, params?: any) => string }) => {
   if (!images || images.length === 0) return null;
   
   return (
     <div className="mt-4">
-      <h3 className="font-medium mb-2">Progress Photos:</h3>
+      <h3 className="font-medium mb-2">{t('app.addProgress.progressPhotos')}</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {images.map((image: PhotoWithMetadata, index: number) => (
           <div key={index} className="relative">
             <img
               src={image.dataUrl}
-              alt={`Progress photo ${index + 1}`}
+              alt={t('app.addProgress.progressPhotoAlt', { index: index + 1 })}
               className="w-full h-24 object-cover rounded"
             />
             <button
@@ -72,33 +72,61 @@ const LeaderAddProgress = () => {
   const [externalDriverMobileNumber, setExternalDriverMobileNumber] = useState('');
   const [startMeterImage, setStartMeterImage] = useState<File | null>(null);
   const [endMeterImage, setEndMeterImage] = useState<File | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState<boolean>(true);
   
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const allProjects = await getProjects();
+        setLoadingProjects(true);
         if (user) {
-          // Filter projects where the user is the leader
-          const userProjects = allProjects.filter(project => project.leader_id === Number(user.id));
-          // Further filter out projects that are completed or have a completed final submission
-          const filteredProjects = [];
-          for (const project of userProjects) {
-            if (project.completed_work >= project.total_work) continue;
-            const finalSubs = await getFinalSubmissions(project.id);
-            const hasCompletedFinal = finalSubs.some(sub => sub.status === 'completed');
-            if (!hasCompletedFinal) {
-              filteredProjects.push(project);
-            }
-          }
-          setProjects(filteredProjects);
+          const userProjects = await getProjects({ notCompleted: true });
+          setProjects(userProjects.filter(project => project.leader_id === Number(user.id)));
         }
       } catch (error) {
         console.error('Error fetching projects:', error);
-        toast.error('Failed to fetch projects');
+        toast.error(t('app.addProgress.error.fetchProjects'));
+      } finally {
+        setLoadingProjects(false);
       }
     };
     fetchProjects();
-  }, [user]);
+  }, [user, t]);
+  
+  // Fetch final submissions only when a project is selected
+  useEffect(() => {
+    const checkFinalSubmission = async () => {
+      if (selectedProject) {
+        try {
+          setLoadingProjects(true);
+          const finalSubs = await getFinalSubmissions(selectedProject.id);
+          const hasCompletedFinal = finalSubs.some(sub => sub.status === 'completed');
+          if (hasCompletedFinal) {
+            toast.error(t('app.addProgress.error.finalSubmissionCompleted'));
+            setSelectedProject(null);
+          }
+        } catch (error) {
+          // Ignore error, just don't block UI
+        } finally {
+          setLoadingProjects(false);
+        }
+      }
+    };
+    checkFinalSubmission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProject]);
+  
+  // Memoize project options for select
+  const projectOptions = useMemo(() => projects.map((project) => ({
+    value: project.id.toString(),
+    label: project.title
+  })), [projects]);
+  
+  useEffect(() => {
+    if (vehicleUsed) {
+      getVehicles().then(setVehicles).catch(() => setVehicles([]));
+      getDrivers().then(setDrivers).catch(() => setDrivers([]));
+    }
+  }, [vehicleUsed]);
   
   useEffect(() => {
     // Calculate progress percentage
@@ -123,13 +151,6 @@ const LeaderAddProgress = () => {
       }
     }
   }, [selectedProject, completedWork, projects]);
-  
-  useEffect(() => {
-    if (vehicleUsed) {
-      getVehicles().then(setVehicles).catch(() => setVehicles([]));
-      getDrivers().then(setDrivers).catch(() => setDrivers([]));
-    }
-  }, [vehicleUsed]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -186,7 +207,7 @@ const LeaderAddProgress = () => {
 
       // Validate total work
       if (newCompletedWork > totalWork) {
-        toast.error('Total completed work cannot exceed total work');
+        toast.error(t('app.addProgress.error.completedWorkExceeds'));
         return;
       }
 
@@ -219,7 +240,7 @@ const LeaderAddProgress = () => {
       const updatedProjects = await getProjects();
       setProjects(updatedProjects.filter(project => project.leader_id === Number(user?.id)));
 
-      toast.success('Progress added successfully');
+      toast.success(t('app.addProgress.success'));
       
       // Navigate to leader dashboard after short delay
       setTimeout(() => {
@@ -227,7 +248,7 @@ const LeaderAddProgress = () => {
       }, 1500);
     } catch (error) {
       console.error('Error adding progress:', error);
-      toast.error('Failed to add progress');
+      toast.error(t('app.addProgress.error.generic'));
     } finally {
       setIsSubmitting(false);
     }
@@ -245,94 +266,102 @@ const LeaderAddProgress = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-6">{t('app.progress.add.title')}</h1>
+      <h1 className="text-4xl font-bold mb-6">{t('app.addProgress.title')}</h1>
       <p className="text-muted-foreground mb-8">
-        {t('app.progress.add.description')}
+        {t('app.addProgress.description')}
       </p>
       
       <div className="w-full max-w-6xl mx-auto">
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>{t('app.progress.add.formTitle')}</CardTitle>
+            <CardTitle>{t('app.addProgress.title')}</CardTitle>
             <CardDescription>
-              {t('app.progress.add.formDescription')}
+              {t('app.addProgress.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6 w-full">
               <div className="space-y-4 w-full">
                 <div className="w-full">
-                  <Label htmlFor="project">{t('app.progress.add.selectProject')}</Label>
-                  <Select
+                  <Label htmlFor="project">{t('app.addProgress.selectProject.label')}</Label>
+                  {loadingProjects ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : (
+                    projects.length === 0 ? (
+                      <div className="text-center text-muted-foreground py-4">{t('app.addProgress.noProjectsAvailable')}</div>
+                    ) : (
+                      <select
+                        className="w-full p-2 border rounded"
                     value={selectedProject?.id?.toString() || ''}
-                    onValueChange={(value) => {
-                      const project = projects.find(p => p.id.toString() === value);
+                        onChange={e => {
+                          const project = projects.find(p => p.id.toString() === e.target.value);
               setSelectedProject(project || null);
             }}
-          >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t('app.progress.add.selectProjectPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                  {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id.toString()}>
-                {project.title}
-                        </SelectItem>
+                        disabled={loadingProjects}
+                      >
+                        <option value="" disabled>{t('app.addProgress.selectProject.placeholder')}</option>
+                        {projectOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
                   ))}
-                    </SelectContent>
-                  </Select>
+                      </select>
+                    )
+                  )}
                 </div>
             
                 <div className="w-full">
-                  <Label htmlFor="completedWork">{t('app.progress.add.completedWork')}</Label>
+                  <Label htmlFor="completedWork">{t('app.addProgress.completedWork.label')}</Label>
               <Input
                 id="completedWork"
                 type="number"
                 value={completedWork}
                 onChange={(e) => setCompletedWork(e.target.value)}
-                    placeholder={t('app.progress.add.completedWorkPlaceholder')}
+                    placeholder={t('app.addProgress.completedWork.placeholder')}
                     required
                     className="w-full"
                   />
                 </div>
                 
                 <div className="w-full">
-                  <Label htmlFor="description">{t('app.progress.add.description')}</Label>
+                  <Label htmlFor="description">{t('app.addProgress.description.label')}</Label>
                   <Textarea
                     id="description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder={t('app.progress.add.descriptionPlaceholder')}
+                    placeholder={t('app.addProgress.description.placeholder')}
             required
                     className="w-full"
               />
             </div>
             
                 <div className="w-full">
-                  <Label htmlFor="timeTaken">{t('app.progress.add.timeTaken')}</Label>
+                  <Label htmlFor="timeTaken">{t('app.addProgress.timeTaken')}</Label>
               <Input
                 id="timeTaken"
                 value={timeTaken}
                 onChange={(e) => setTimeTaken(e.target.value)}
-                    placeholder={t('app.progress.add.timeTakenPlaceholder')}
+                    placeholder={t('app.addProgress.timeTakenPlaceholder')}
                     required
                     className="w-full"
               />
             </div>
             
                 <div className="w-full">
-                  <Label htmlFor="notes">{t('app.progress.add.notes')}</Label>
+                  <Label htmlFor="notes">{t('app.addProgress.notes')}</Label>
               <Textarea
                 id="notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                    placeholder={t('app.progress.add.notesPlaceholder')}
+                    placeholder={t('app.addProgress.notesPlaceholder')}
                     className="w-full"
               />
             </div>
             
                 <div className="w-full">
-                  <Label>{t('app.progress.add.photos')}</Label>
+                  <Label>{t('app.addProgress.photos')}</Label>
                   <div className="mt-2">
                     <Input
                     type="file"
@@ -365,15 +394,15 @@ const LeaderAddProgress = () => {
 
               <div className="w-full flex items-center gap-2">
                 <input type="checkbox" id="vehicleUsed" checked={vehicleUsed} onChange={e => setVehicleUsed(e.target.checked)} />
-                <Label htmlFor="vehicleUsed">Vehicle Used</Label>
+                <Label htmlFor="vehicleUsed">{t('app.addProgress.vehicleUsed')}</Label>
               </div>
               {vehicleUsed && (
                 <div className="space-y-4">
                   <div className="w-full">
-                    <Label htmlFor="vehicle">Select Vehicle</Label>
+                    <Label htmlFor="vehicle">{t('app.addProgress.selectVehicle')}</Label>
                     <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select vehicle" />
+                        <SelectValue placeholder={t('app.addProgress.selectVehiclePlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
                         {vehicles.map(vehicle => (
@@ -383,10 +412,10 @@ const LeaderAddProgress = () => {
                     </Select>
                   </div>
                   <div className="w-full">
-                    <Label htmlFor="driver">Select Driver</Label>
+                    <Label htmlFor="driver">{t('app.addProgress.selectDriver')}</Label>
                     <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select driver" />
+                        <SelectValue placeholder={t('app.addProgress.selectDriverPlaceholder')} />
                       </SelectTrigger>
                       <SelectContent>
                         {drivers.map(driver => (
@@ -404,13 +433,13 @@ const LeaderAddProgress = () => {
                           if (e.target.checked) setSelectedDriverId('');
                         }}
                       />
-                      <Label htmlFor="isExternalDriver">External Driver</Label>
+                      <Label htmlFor="isExternalDriver">{t('app.addProgress.externalDriver')}</Label>
                     </div>
                     {isExternalDriver && (
                       <div className="space-y-2 mt-2">
-                        <Input placeholder="Driver Name" value={externalDriverName} onChange={e => setExternalDriverName(e.target.value)} required />
-                        <Input placeholder="License Type" value={externalDriverLicenseType} onChange={e => setExternalDriverLicenseType(e.target.value)} required />
-                        <Input placeholder="Mobile Number" value={externalDriverMobileNumber} onChange={e => setExternalDriverMobileNumber(e.target.value)} required />
+                        <Input placeholder={t('app.addProgress.driverNamePlaceholder')} value={externalDriverName} onChange={e => setExternalDriverName(e.target.value)} required />
+                        <Input placeholder={t('app.addProgress.licenseTypePlaceholder')} value={externalDriverLicenseType} onChange={e => setExternalDriverLicenseType(e.target.value)} required />
+                        <Input placeholder={t('app.addProgress.mobileNumberPlaceholder')} value={externalDriverMobileNumber} onChange={e => setExternalDriverMobileNumber(e.target.value)} required />
                       </div>
                     )}
                   </div>
@@ -430,7 +459,7 @@ const LeaderAddProgress = () => {
                 className="w-full"
               disabled={isSubmitting}
             >
-                {isSubmitting ? t('app.progress.add.submitting') : t('app.progress.add.submit')}
+                {isSubmitting ? t('app.addProgress.submitting') : t('app.addProgress.submit')}
               </Button>
       </form>
           </CardContent>
