@@ -1,5 +1,4 @@
-
-import { TenderBill, Tender, TenderItem, FinalSubmission } from './tender-types';
+import { TenderBill, Tender, FinalSubmission } from './tender-types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Tender Bills Storage
