@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db/config';
 import multer from 'multer';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.get('/test-db', async (req, res) => {
     console.error('Database connection test failed:', error);
     res.status(500).json({ 
       error: 'Database connection failed',
-      message: error.message
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -48,14 +49,14 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: (result as any).insertId, role },
+      { id: (result as ResultSetHeader).insertId, role },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
 
     res.status(201).json({
       user: {
-        id: (result as any).insertId,
+        id: (result as ResultSetHeader).insertId,
         name,
         email,
         role
@@ -154,7 +155,7 @@ router.get('/users', async (req: Request, res: Response) => {
     const [users] = await pool.query('SELECT id, name, email, role, mobile_number, created_at, updated_at FROM users');
     res.json(users);
   } catch (error) {
-    console.error('Error fetching users:', (error as Error).message);
+    console.error('Error fetching users:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -186,14 +187,14 @@ router.post('/users', async (req: Request, res: Response) => {
     );
 
     res.status(201).json({
-      id: (result as any).insertId,
+      id: (result as ResultSetHeader).insertId,
       name,
       email,
       role,
       mobileNumber
     });
   } catch (error) {
-    console.error('Admin create user error:', (error as Error).message);
+    console.error('Admin create user error:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to create user' });
   }
 });
@@ -213,7 +214,7 @@ router.post('/users/:id/reset-password', async (req: Request, res: Response) => 
 
     res.json({ message: 'Password reset to default.' });
   } catch (error) {
-    console.error('Reset password error:', (error as Error).message);
+    console.error('Reset password error:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to reset password' });
   }
 });
@@ -236,7 +237,7 @@ router.put('/users/:id', async (req: Request, res: Response) => {
 
     res.json({ message: 'User updated successfully.' });
   } catch (error) {
-    console.error('Update user error:', (error as Error).message);
+    console.error('Update user error:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
@@ -251,7 +252,7 @@ router.get('/vehicles', async (req: Request, res: Response) => {
     const [vehicles] = await pool.query('SELECT id, type, model, rc_image, rc_image_mime, rc_image_name, rc_expiry, pollution_cert_image, pollution_cert_expiry, fitness_cert_image, fitness_cert_expiry, created_at, updated_at FROM vehicles');
     res.json(vehicles);
   } catch (error) {
-    console.error('Error fetching vehicles:', (error as Error).message);
+    console.error('Error fetching vehicles:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to fetch vehicles' });
   }
 });
@@ -269,8 +270,8 @@ router.post('/vehicles', upload.fields([
     const fitness_file = req.files && (req.files as any)['fitness_cert_image'] ? (req.files as any)['fitness_cert_image'][0] : null;
 
     // Helper to get extension from originalname
-    function getExtension(filename) {
-      return filename ? filename.split('.').pop() : '';
+    function getExtension(filename: string): string {
+      return filename ? filename.split('.').pop() || '' : '';
     }
 
     // Compose file names as type_model_certtype.extension
@@ -317,7 +318,7 @@ router.post('/vehicles', upload.fields([
     );
 
     res.status(201).json({
-      id: (result as any).insertId,
+      id: (result as ResultSetHeader).insertId,
       type,
       model,
       rc_expiry,
@@ -328,7 +329,7 @@ router.post('/vehicles', upload.fields([
     console.error('Error adding vehicle:', error);
     res.status(500).json({ 
       error: 'Failed to add vehicle',
-      errorMessage: (error as Error).message,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
       receivedFields: req.body,
       receivedFiles: Object.keys(req.files || {})
     });
@@ -342,12 +343,13 @@ router.get('/vehicles/:id/rc_image', async (req, res) => {
       'SELECT rc_image, rc_image_mime, rc_image_name FROM vehicles WHERE id = ?',
       [req.params.id]
     );
-    if (!Array.isArray(rows) || rows.length === 0 || !rows[0].rc_image) {
+    if (!Array.isArray(rows) || rows.length === 0 || !(rows[0] as any).rc_image) {
       return res.status(404).send('Not found');
     }
-    res.set('Content-Type', rows[0].rc_image_mime || 'application/octet-stream');
-    res.set('Content-Disposition', `attachment; filename="${rows[0].rc_image_name || 'rc_image'}"`);
-    res.send(rows[0].rc_image);
+    const row = rows[0] as any;
+    res.set('Content-Type', row.rc_image_mime || 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename="${row.rc_image_name || 'rc_image'}"`);
+    res.send(row.rc_image);
   } catch (error) {
     res.status(500).send('Error retrieving image');
   }
@@ -360,12 +362,13 @@ router.get('/vehicles/:id/pollution_cert_image', async (req, res) => {
       'SELECT pollution_cert_image, pollution_cert_image_mime, pollution_cert_image_name FROM vehicles WHERE id = ?',
       [req.params.id]
     );
-    if (!Array.isArray(rows) || rows.length === 0 || !rows[0].pollution_cert_image) {
+    if (!Array.isArray(rows) || rows.length === 0 || !(rows[0] as any).pollution_cert_image) {
       return res.status(404).send('Not found');
     }
-    res.set('Content-Type', rows[0].pollution_cert_image_mime || 'application/octet-stream');
-    res.set('Content-Disposition', `attachment; filename="${rows[0].pollution_cert_image_name || 'pollution_cert_image'}"`);
-    res.send(rows[0].pollution_cert_image);
+    const row = rows[0] as any;
+    res.set('Content-Type', row.pollution_cert_image_mime || 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename="${row.pollution_cert_image_name || 'pollution_cert_image'}"`);
+    res.send(row.pollution_cert_image);
   } catch (error) {
     res.status(500).send('Error retrieving image');
   }
@@ -378,12 +381,13 @@ router.get('/vehicles/:id/fitness_cert_image', async (req, res) => {
       'SELECT fitness_cert_image, fitness_cert_image_mime, fitness_cert_image_name FROM vehicles WHERE id = ?',
       [req.params.id]
     );
-    if (!Array.isArray(rows) || rows.length === 0 || !rows[0].fitness_cert_image) {
+    if (!Array.isArray(rows) || rows.length === 0 || !(rows[0] as any).fitness_cert_image) {
       return res.status(404).send('Not found');
     }
-    res.set('Content-Type', rows[0].fitness_cert_image_mime || 'application/octet-stream');
-    res.set('Content-Disposition', `attachment; filename="${rows[0].fitness_cert_image_name || 'fitness_cert_image'}"`);
-    res.send(rows[0].fitness_cert_image);
+    const row = rows[0] as any;
+    res.set('Content-Type', row.fitness_cert_image_mime || 'application/octet-stream');
+    res.set('Content-Disposition', `attachment; filename="${row.fitness_cert_image_name || 'fitness_cert_image'}"`);
+    res.send(row.fitness_cert_image);
   } catch (error) {
     res.status(500).send('Error retrieving image');
   }
@@ -394,7 +398,7 @@ router.delete('/vehicles/:id', async (req, res) => {
   try {
     const vehicleId = req.params.id;
     const [result] = await pool.query('DELETE FROM vehicles WHERE id = ?', [vehicleId]);
-    if ((result as any).affectedRows === 0) {
+    if ((result as ResultSetHeader).affectedRows === 0) {
       return res.status(404).json({ error: 'Vehicle not found' });
     }
     res.json({ message: 'Vehicle deleted successfully.' });

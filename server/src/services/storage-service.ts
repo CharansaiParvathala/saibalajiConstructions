@@ -1,4 +1,73 @@
-import { Project, PaymentRequest, ProgressUpdate, Vehicle, Driver, User, BackupLink, FinalSubmission } from '../../../src/lib/types';
+// Define local types instead of importing from client
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  leader_id: string;
+  total_work: number;
+  completed_work: number;
+  status: string;
+  created_at: string;
+}
+
+interface PaymentRequest {
+  id: string;
+  project_id: string;
+  description: string;
+  amount: number;
+  status: string;
+  created_at: string;
+}
+
+interface ProgressUpdate {
+  id: string;
+  project_id: string;
+  description: string;
+  completed_work: number;
+  created_at: string;
+}
+
+interface Vehicle {
+  id: string;
+  type: string;
+  model: string;
+  created_at: string;
+}
+
+interface Driver {
+  id: string;
+  name: string;
+  mobile_number: string;
+  license_number: string;
+  license_type: string;
+  created_at: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  mobile_number: string;
+  created_at: string;
+}
+
+interface BackupLink {
+  id: string;
+  url: string;
+  description: string;
+  created_at: string;
+}
+
+interface FinalSubmission {
+  id: string;
+  project_id: string;
+  leader_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export class StorageService {
   private static instance: StorageService;
@@ -12,11 +81,11 @@ export class StorageService {
           id: '1',
           name: 'Sample Project 1',
           description: 'A sample project for testing',
-          leaderId: '1',
-          totalWork: 100,
-          completedWork: 0,
+          leader_id: '1',
+          total_work: 100,
+          completed_work: 0,
           status: 'pending',
-          createdAt: new Date().toISOString()
+          created_at: new Date().toISOString()
         }
       ],
       paymentRequests: [],
@@ -30,8 +99,8 @@ export class StorageService {
           email: 'admin@example.com',
           password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'admin123'
           role: 'admin',
-          mobileNumber: '1234567890',
-          createdAt: new Date().toISOString()
+          mobile_number: '1234567890',
+          created_at: new Date().toISOString()
         },
         {
           id: '2',
@@ -39,8 +108,8 @@ export class StorageService {
           email: 'leader@example.com',
           password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'leader123'
           role: 'leader',
-          mobileNumber: '2345678901',
-          createdAt: new Date().toISOString()
+          mobile_number: '2345678901',
+          created_at: new Date().toISOString()
         },
         {
           id: '3',
@@ -48,8 +117,8 @@ export class StorageService {
           email: 'owner@example.com',
           password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'owner123'
           role: 'owner',
-          mobileNumber: '3456789012',
-          createdAt: new Date().toISOString()
+          mobile_number: '3456789012',
+          created_at: new Date().toISOString()
         },
         {
           id: '4',
@@ -57,8 +126,8 @@ export class StorageService {
           email: 'checker@example.com',
           password: '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', // hashed 'checker123'
           role: 'checker',
-          mobileNumber: '4567890123',
-          createdAt: new Date().toISOString()
+          mobile_number: '4567890123',
+          created_at: new Date().toISOString()
         }
       ],
       backupLinks: [],
@@ -116,14 +185,14 @@ export class StorageService {
 
   async getProjectsByLeaderId(leaderId: string): Promise<Project[]> {
     const projects = await this.getProjects();
-    return projects.filter(project => project.leaderId === leaderId);
+    return projects.filter(project => project.leader_id === leaderId);
   }
 
-  async saveProject(project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
+  async saveProject(project: Omit<Project, 'id' | 'created_at'>): Promise<Project> {
     const newProject: Project = {
       ...project,
       id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
     return this.addData<Project>('projects', newProject);
   }
@@ -139,14 +208,14 @@ export class StorageService {
 
   async getPaymentRequestsByProjectId(projectId: string): Promise<PaymentRequest[]> {
     const requests = await this.getPaymentRequests();
-    return requests.filter(request => request.projectId === projectId);
+    return requests.filter(request => request.project_id === projectId);
   }
 
-  async savePaymentRequest(paymentRequest: Omit<PaymentRequest, 'id' | 'createdAt'>): Promise<PaymentRequest> {
+  async savePaymentRequest(paymentRequest: Omit<PaymentRequest, 'id' | 'created_at'>): Promise<PaymentRequest> {
     const newRequest: PaymentRequest = {
       ...paymentRequest,
       id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
     return this.addData<PaymentRequest>('paymentRequests', newRequest);
   }
@@ -162,7 +231,7 @@ export class StorageService {
 
   async getProgressUpdatesByProjectId(projectId: string): Promise<ProgressUpdate[]> {
     const updates = await this.getProgressUpdates();
-    return updates.filter(update => update.projectId === projectId);
+    return updates.filter(update => update.project_id === projectId);
   }
 
   async addProgressUpdate(update: ProgressUpdate): Promise<void> {
@@ -199,6 +268,11 @@ export class StorageService {
   // Vehicles
   async getAllVehicles(): Promise<Vehicle[]> {
     return this.getData<Vehicle>('vehicles');
+  }
+
+  async getVehicleById(id: string): Promise<Vehicle | undefined> {
+    const vehicles = await this.getAllVehicles();
+    return vehicles.find(vehicle => vehicle.id === id);
   }
 
   async createVehicle(vehicle: Omit<Vehicle, 'id'>): Promise<Vehicle> {
@@ -239,7 +313,7 @@ export class StorageService {
   }
 
   async getDriverById(id: string): Promise<Driver | undefined> {
-    const drivers = await this.getData<Driver>('drivers');
+    const drivers = await this.getAllDrivers();
     return drivers.find(driver => driver.id === id);
   }
 
@@ -248,13 +322,17 @@ export class StorageService {
     return this.getData<BackupLink>('backupLinks');
   }
 
-  async createBackupLink(link: Omit<BackupLink, 'id' | 'createdAt'>): Promise<BackupLink> {
+  async createBackupLink(link: Omit<BackupLink, 'id' | 'created_at'>): Promise<BackupLink> {
     const newLink: BackupLink = {
       ...link,
       id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
     return this.addData<BackupLink>('backupLinks', newLink);
+  }
+
+  async updateBackupLink(link: BackupLink): Promise<void> {
+    await this.updateData<BackupLink>('backupLinks', link.id, link);
   }
 
   async deleteBackupLink(id: string): Promise<void> {
@@ -266,23 +344,23 @@ export class StorageService {
     return this.getData<FinalSubmission>('finalSubmissions');
   }
 
-  async saveFinalSubmission(submission: Omit<FinalSubmission, 'id' | 'createdAt' | 'updatedAt'>): Promise<FinalSubmission> {
+  async saveFinalSubmission(submission: Omit<FinalSubmission, 'id' | 'created_at' | 'updated_at'>): Promise<FinalSubmission> {
     const newSubmission: FinalSubmission = {
       ...submission,
       id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     return this.addData<FinalSubmission>('finalSubmissions', newSubmission);
   }
 
   async getFinalSubmissionsByLeader(leaderId: string): Promise<FinalSubmission[]> {
     const submissions = await this.getFinalSubmissions();
-    return submissions.filter(submission => submission.leaderId === leaderId);
+    return submissions.filter(submission => submission.leader_id === leaderId);
   }
 
   async getFinalSubmissionsByProject(projectId: string): Promise<FinalSubmission[]> {
     const submissions = await this.getFinalSubmissions();
-    return submissions.filter(submission => submission.projectId === projectId);
+    return submissions.filter(submission => submission.project_id === projectId);
   }
 } 

@@ -2,10 +2,20 @@ import express, { Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { pool } from '../db/config';
 
+// Extend Request type to include user
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: number;
+    email: string;
+    name: string;
+    role: string;
+  };
+}
+
 const router = express.Router();
 
 // Get all projects
-router.get('/', authenticateToken, async (req: Request, res: Response) => {
+router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { status, notCompleted } = req.query;
     let query = `
@@ -36,14 +46,14 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // Get all project images with timestamps for export
-router.get('/:id/images-for-export', authenticateToken, async (req: Request, res: Response) => {
+router.get('/:id/images-for-export', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     console.log('Images export request for project ID:', id);
     
     // Check if user is admin
-    if (req.user.role !== 'admin') {
-      console.log('Access denied - user role:', req.user.role);
+    if (req.user?.role !== 'admin') {
+      console.log('Access denied - user role:', req.user?.role);
       return res.status(403).json({ error: 'Access denied. Admin only.' });
     }
 
@@ -130,10 +140,10 @@ router.get('/:id/images-for-export', authenticateToken, async (req: Request, res
 });
 
 // Get comprehensive project data for export
-router.get('/export-data', authenticateToken, async (req, res) => {
+router.get('/export-data', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Check if user is admin
-    if (req.user.role !== 'admin') {
+    if (req.user?.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied. Admin only.' });
     }
 
