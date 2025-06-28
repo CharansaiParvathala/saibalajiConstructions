@@ -165,7 +165,7 @@ router.get('/export-data', authenticateToken, async (req: AuthenticatedRequest, 
         ORDER BY u.name, u.id
       `) as [RowDataPacket[], any];
 
-      const exportData = [];
+      const exportData: any[] = [];
 
       for (const user of users) {
         // Get projects for this user
@@ -186,7 +186,7 @@ router.get('/export-data', authenticateToken, async (req: AuthenticatedRequest, 
           ORDER BY p.created_at DESC
         `, [user.user_id]) as [RowDataPacket[], any];
 
-        const userData = {
+        const userData: any = {
           user: {
             id: user.user_id,
             name: user.user_name,
@@ -240,7 +240,7 @@ router.get('/export-data', authenticateToken, async (req: AuthenticatedRequest, 
             ORDER BY pr.created_at DESC
           `, [project.project_id]) as [RowDataPacket[], any];
 
-          const projectData = {
+          const projectData: any = {
             project: {
               id: project.project_id,
               title: project.project_title,
