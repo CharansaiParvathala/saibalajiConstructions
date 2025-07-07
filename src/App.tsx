@@ -22,8 +22,8 @@ import AdminDrivers from './pages/admin/AdminDrivers';
 import AdminBackup from './pages/admin/AdminBackup';
 import AdminCredentials from './pages/admin/AdminCredentials';
 import AdminExportData from './pages/admin/AdminExportData';
-import AdminTenders from './pages/admin/AdminTenders';
 import AdminCreateTender from './pages/admin/AdminCreateTender';
+import AdminTenderImages from './pages/admin/AdminTenderImages';
 import LeaderAddProgress from './pages/leader/LeaderAddProgress';
 import LeaderViewProgress from './pages/leader/LeaderViewProgress';
 import LeaderRequestPayment from './pages/leader/LeaderRequestPayment';
@@ -38,6 +38,8 @@ import CheckerReviewSubmissions from './pages/checker/CheckerReviewSubmissions';
 import CheckerReviewHistory from './pages/checker/CheckerReviewHistory';
 import LeaderPaymentDetails from './pages/leader/LeaderPaymentDetails';
 import OwnerCredentials from './pages/owner/OwnerCredentials';
+import CheckerReviewSubmissionDetails from './pages/checker/CheckerReviewSubmissionDetails';
+import EditTenderImage from './pages/admin/EditTenderImage';
 
 function App() {
   const location = useLocation();
@@ -178,18 +180,26 @@ function App() {
           }
         />
         <Route
-          path="/admin/tenders"
-          element={
-            <ProtectedRoute requiredRole="admin">
-          <AdminTenders />
-        </ProtectedRoute>
-          }
-        />
-        <Route
           path="/admin/create-tender"
           element={
             <ProtectedRoute requiredRole="admin">
           <AdminCreateTender />
+        </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tender-images"
+          element={
+            <ProtectedRoute requiredRole="admin">
+          <AdminTenderImages />
+        </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tender-images/:id/edit"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <EditTenderImage />
         </ProtectedRoute>
           }
         />
@@ -306,6 +316,14 @@ function App() {
             <ProtectedRoute requiredRole="checker">
           <CheckerReviewHistory />
         </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checker/review-submissions/:id"
+          element={
+            <ProtectedRoute requiredRole="checker">
+              <CheckerReviewSubmissionDetails />
+            </ProtectedRoute>
           }
         />
 

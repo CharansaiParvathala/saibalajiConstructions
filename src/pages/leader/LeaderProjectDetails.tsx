@@ -75,11 +75,11 @@ export default function LeaderProjectDetails() {
             </div>
             <div>
               <h3 className="font-semibold">Total Work</h3>
-              <p>{project.total_work} units</p>
+              <p>{project.total_work} meters</p>
             </div>
             <div>
               <h3 className="font-semibold">Completed Work</h3>
-              <p>{project.completed_work} units</p>
+              <p>{project.completed_work} meters</p>
             </div>
             <div>
               <h3 className="font-semibold">Progress</h3>

@@ -35,6 +35,9 @@ export function Navbar() {
   };
 
   const isRouteActive = (route: string) => {
+    if (["/leader", "/checker", "/owner", "/admin"].includes(route)) {
+      return location.pathname === route;
+    }
     return location.pathname.startsWith(route);
   };
 

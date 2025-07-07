@@ -3,7 +3,7 @@ import { useAuth } from '@/context/auth-context';
 import { useLanguage } from '@/context/language-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileOutput, Image, FileText } from 'lucide-react';
+import { FileOutput, Image, FileText, Download } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { getProjects, getProjectExportData, getFinalSubmissions, getPaymentRequestsByProjectId, deleteProject } from '@/lib/api/api-client';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +38,7 @@ const AdminExportData = () => {
   const [deletableProjects, setDeletableProjects] = useState<Project[]>([]);
   const [selectedDeletableProject, setSelectedDeletableProject] = useState<Project | null>(null);
   const [loadingDeletable, setLoadingDeletable] = useState(false);
+  const [downloadingMergedTender, setDownloadingMergedTender] = useState(false);
 
   // Redirect if not admin
   useEffect(() => {
@@ -198,16 +199,39 @@ const AdminExportData = () => {
         outputDirectory: 'final_submission_images'
       });
       toast.success(t("common.exportSuccess"));
-    } catch (error: any) {
-      console.error("Final image export error:", error);
-      const errorMsg = (typeof error === 'string') ? error : (error && error.message ? error.message : '');
-      if (errorMsg.toLowerCase().includes('no final submission images found')) {
-        toast.error('Project not completed: No final submission images found for this project.');
-      } else {
+    } catch (error) {
+      console.error("Final images export error:", error);
         toast.error(t("common.exportError"));
-      }
     } finally {
       setLoading(prev => ({ ...prev, finalImages: false }));
+    }
+  };
+
+  // Handle download merged tender PDF
+  const handleDownloadMergedTender = async () => {
+    setDownloadingMergedTender(true);
+    try {
+      const res = await fetch('/api/tender/download');
+      if (!res.ok) throw new Error('Failed to download merged tender PDF');
+      
+      // Create blob from response
+      const blob = await res.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `merged-tender-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Merged tender PDF downloaded successfully!');
+    } catch (err) {
+      toast.error('Failed to download merged tender PDF');
+    } finally {
+      setDownloadingMergedTender(false);
     }
   };
 
@@ -232,13 +256,30 @@ const AdminExportData = () => {
     );
   }
 
+  if (user?.role !== 'admin') {
+    return <div className="container mx-auto py-6">Access denied</div>;
+  }
+
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-4xl font-bold mb-6">{t('app.admin.tender.title')}</h1>
-      <p className="text-muted-foreground mb-8">
-        {t('app.admin.tender.description')}
-      </p>
-      
+    <div className="container mx-auto py-4 md:py-6 px-4 space-y-6 md:space-y-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+        <div className="flex-1">
+          <h1 className="text-2xl md:text-4xl font-bold">{t('app.admin.export.title')}</h1>
+        </div>
+        <Button 
+          onClick={handleDownloadMergedTender} 
+          disabled={downloadingMergedTender}
+          className="flex items-center gap-2 w-full lg:w-auto"
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {downloadingMergedTender ? 'Downloading...' : 'Download Merged Tender PDF'}
+          </span>
+          <span className="sm:hidden">
+            {downloadingMergedTender ? 'Downloading...' : 'Download Tender PDF'}
+          </span>
+        </Button>
+      </div>
       <div className="grid gap-6">
         {/* Deletable Projects Section */}
         <Card>

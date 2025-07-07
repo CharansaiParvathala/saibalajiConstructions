@@ -1,111 +1,118 @@
 import express, { Request, Response } from 'express';
 import { pool } from '../db/config';
 import { uploadMemory } from '../services/file-upload';
-import { RowDataPacket } from 'mysql2';
 
 const router = express.Router();
 
 // Get all drivers
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const [drivers] = await pool.query('SELECT * FROM drivers ORDER BY created_at DESC');
-    res.json(drivers);
+    console.log('Fetching all drivers...');
+    const [rows] = await pool.query('SELECT * FROM drivers');
+    console.log(`Found ${(rows as any[]).length} drivers`);
+    res.json(rows);
   } catch (error) {
     console.error('Error fetching drivers:', error);
-    res.status(500).json({ error: 'Failed to fetch drivers' });
+    res.status(500).json({ error: 'Failed to fetch drivers', details: (error as Error).message });
   }
 });
 
-// Add a new driver
-router.post('/', uploadMemory.fields([
-  { name: 'license_image', maxCount: 1 }
-]), async (req: Request, res: Response) => {
+// Add a new driver with license image
+router.post('/', uploadMemory.single('license_image'), async (req: Request, res: Response) => {
   try {
     const { name, mobile_number, license_number, license_type } = req.body;
-    const license_file = req.files && (req.files as any)['license_image'] ? (req.files as any)['license_image'][0] : null;
-
-    // Helper to get extension from originalname
-    function getExtension(filename: string): string {
-      return filename ? filename.split('.').pop() || '' : '';
+    const license_file = req.file;
+    function getExtension(filename) {
+      return filename ? filename.split('.').pop() : '';
     }
-
-    // Compose file name
-    const license_ext = license_file ? getExtension(license_file.originalname) : '';
-    const license_image_name = license_file ? `${name}_${license_number}_license${license_ext ? '.' + license_ext : ''}` : null;
+    const license_image_name = license_file ? `${name}_license.${getExtension(license_file.originalname)}` : null;
     const license_image_mime = license_file ? license_file.mimetype : null;
     const license_image = license_file ? license_file.buffer : null;
-
     if (!name || !mobile_number || !license_number || !license_type) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-
     const [result] = await pool.query(
-      'INSERT INTO drivers (name, mobile_number, license_number, license_type, license_image, license_image_name, license_image_mime) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO drivers (
+        name, mobile_number, license_number, license_type, license_image, license_image_name, license_image_mime
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)` ,
       [name, mobile_number, license_number, license_type, license_image, license_image_name, license_image_mime]
     );
-
     res.status(201).json({
       id: (result as any).insertId,
       name,
       mobile_number,
       license_number,
-      license_type
+      license_type,
+      license_image_name,
+      license_image_mime
     });
   } catch (error) {
     console.error('Error adding driver:', error);
-    res.status(500).json({ error: 'Failed to add driver' });
-  }
-});
-
-// Update a driver
-router.put('/:id', uploadMemory.fields([
-  { name: 'license_image', maxCount: 1 }
-]), async (req: Request, res: Response) => {
-  try {
-    const driverId = req.params.id;
-    const { name, mobile_number, license_number, license_type } = req.body;
-    const license_file = req.files && (req.files as any)['license_image'] ? (req.files as any)['license_image'][0] : null;
-
-    // Helper to get extension from originalname
-    function getExtension(filename: string): string {
-      return filename ? filename.split('.').pop() || '' : '';
-    }
-
-    // Compose file name
-    const license_ext = license_file ? getExtension(license_file.originalname) : '';
-    const license_image_name = license_file ? `${name}_${license_number}_license${license_ext ? '.' + license_ext : ''}` : null;
-    const license_image_mime = license_file ? license_file.mimetype : null;
-    const license_image = license_file ? license_file.buffer : null;
-
-    if (!name || !mobile_number || !license_number || !license_type) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
-
-    const [result] = await pool.query(
-      'UPDATE drivers SET name = ?, mobile_number = ?, license_number = ?, license_type = ?, license_image = ?, license_image_name = ?, license_image_mime = ? WHERE id = ?',
-      [name, mobile_number, license_number, license_type, license_image, license_image_name, license_image_mime, driverId]
-    );
-
-    // Get updated driver
-    const [updatedDriver] = await pool.query('SELECT * FROM drivers WHERE id = ?', [driverId]) as [RowDataPacket[], any];
-    res.json(updatedDriver[0]);
-  } catch (error) {
-    console.error('Error updating driver:', error);
-    res.status(500).json({ error: 'Failed to update driver' });
+    res.status(500).json({ error: 'Failed to add driver', errorMessage: (error as Error).message });
   }
 });
 
 // Delete a driver
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const driverId = req.params.id;
-    const [result] = await pool.query('DELETE FROM drivers WHERE id = ?', [driverId]);
+    const [result] = await pool.query('DELETE FROM drivers WHERE id = ?', [req.params.id]);
     if ((result as any).affectedRows === 0) {
       return res.status(404).json({ error: 'Driver not found' });
     }
-    res.json({ message: 'Driver deleted successfully.' });
+    res.json({ message: 'Driver deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete driver' });
+  }
+});
+
+// Update a driver
+router.put('/:id', uploadMemory.single('license_image'), async (req: Request, res: Response) => {
+  try {
+    const { name, mobile_number, license_number, license_type } = req.body;
+    const license_file = req.file;
+    const driverId = req.params.id;
+    
+    if (!name || !mobile_number || !license_number || !license_type) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    
+    // Check if driver exists
+    const [existingDriver] = await pool.query('SELECT * FROM drivers WHERE id = ?', [driverId]);
+    if ((existingDriver as any[]).length === 0) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+    
+    let updateQuery = `
+      UPDATE drivers 
+      SET name = ?, mobile_number = ?, license_number = ?, license_type = ?, updated_at = CURRENT_TIMESTAMP
+    `;
+    let queryParams = [name, mobile_number, license_number, license_type];
+    
+    // Handle license image update if provided
+    if (license_file) {
+      function getExtension(filename) {
+        return filename ? filename.split('.').pop() : '';
+      }
+      const license_image_name = `${name}_license.${getExtension(license_file.originalname)}`;
+      const license_image_mime = license_file.mimetype;
+      const license_image = license_file.buffer;
+      
+      updateQuery += `, license_image = ?, license_image_name = ?, license_image_mime = ?`;
+      queryParams.push(license_image, license_image_name, license_image_mime);
+    }
+    
+    updateQuery += ` WHERE id = ?`;
+    queryParams.push(driverId);
+    
+    await pool.query(updateQuery, queryParams);
+    
+    // Get updated driver data
+    const [updatedDriver] = await pool.query('SELECT * FROM drivers WHERE id = ?', [driverId]);
+    
+    res.json(updatedDriver[0]);
+  } catch (error) {
+    console.error('Error updating driver:', error);
+    res.status(500).json({ error: 'Failed to update driver', errorMessage: (error as Error).message });
   }
 });
 

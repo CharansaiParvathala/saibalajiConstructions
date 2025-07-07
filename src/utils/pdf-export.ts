@@ -277,7 +277,7 @@ export const generateProjectPdfReport = async (
 
   // Title
   doc.setFontSize(20);
-  doc.text(`Project Report: ${project.title || 'Unknown Project'}`, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+  doc.text(`Project Report: ${project.name || 'Unknown Project'}`, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
   
   // Project details section
   doc.setFontSize(16);
@@ -289,12 +289,12 @@ export const generateProjectPdfReport = async (
     head: [['Property', 'Value']],
     body: [
       ['Project ID', project.id || 'N/A'],
-      ['Project Name', project.title || 'N/A'],
+      ['Project Name', project.name || 'N/A'],
       ['Status', project.status || 'In Progress'],
-      ['Start Date', project.start_date || 'N/A'],
-      ['Total Work', `${project.total_work || 0} meters`],
-      ['Completed Work', `${project.completed_work || 0} meters`],
-      ['Completion', `${Math.round(((project.completed_work || 0) / (project.total_work || 1)) * 100)}%`]
+      ['Start Date', project.startDate || 'N/A'],
+      ['Total Work', `${project.totalWork || 0} meters`],
+      ['Completed Work', `${project.completedWork || 0} meters`],
+      ['Completion', `${Math.round(((project.completedWork || 0) / (project.totalWork || 1)) * 100)}%`]
     ],
     theme: 'striped',
     headStyles: {
@@ -317,10 +317,10 @@ export const generateProjectPdfReport = async (
       startY: progressY + 5,
       head: [['Date', 'Distance', 'Location', 'Notes']],
       body: progress.map(p => [
-        new Date(p.created_at).toLocaleDateString(),
-        `${p.completed_work || 0} m`,
-        p.image_proof ? 'Image available' : 'N/A',
-        p.description || ''
+        new Date(p.date).toLocaleDateString(),
+        `${p.completedWork || 0} m`,
+        p.location ? `${p.location.latitude.toFixed(4)}, ${p.location.longitude.toFixed(4)}` : 'N/A',
+        p.notes || ''
       ]),
       theme: 'striped',
       headStyles: {
@@ -382,7 +382,7 @@ export const generateProjectPdfReport = async (
 };
 
 // Convert Word document to PDF
-export const wordToPdf = async (): Promise<void> => {
+export const wordToPdf = async (wordBlob: Blob): Promise<void> => {
   try {
     // For now, we'll create a simple PDF directly since Word-to-PDF conversion
     // is complex and typically requires a server-side component
@@ -412,10 +412,10 @@ export const exportProjectsToPDF = async (projects: Project[]): Promise<void> =>
   try {
     const data = projects.map(project => ({
       id: project.id || '',
-      name: project.title || '',
-      completedWork: project.completed_work || 0,
-      totalWork: project.total_work || 0,
-      progress: `${Math.round(((project.completed_work || 0) / (project.total_work || 1)) * 100)}%`
+      name: project.name || '',
+      completedWork: project.completedWork || 0,
+      totalWork: project.totalWork || 0,
+      progress: `${Math.round(((project.completedWork || 0) / (project.totalWork || 1)) * 100)}%`
     }));
     
     return exportToPDF({

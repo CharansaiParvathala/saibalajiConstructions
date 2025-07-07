@@ -9,6 +9,7 @@ import progressRoutes from './routes/progress';
 import finalSubmissionRoutes from './routes/final-submissions';
 import driversRoutes from './routes/drivers';
 import backupLinksRoutes from './routes/backup-links';
+import tenderRoutes from './routes/tender';
 import { pool } from './db/config';
 
 // Load environment variables from .env file
@@ -84,14 +85,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.vercel.app', 'https://your-domain.vercel.app'] 
-    : true,
-  credentials: true
-}));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cors());
+app.use(express.json());
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -146,15 +141,11 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/final-submissions', finalSubmissionRoutes);
 app.use('/api/drivers', driversRoutes);
 app.use('/api/backup-links', backupLinksRoutes);
+app.use('/api/tender', tenderRoutes);
 
 // Test route
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API is working' });
-});
-
-// Health check route for Vercel
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Error handling middleware
@@ -169,47 +160,36 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// Initialize database and start server only if not in Vercel
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(port, async () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`API available at http://localhost:${port}/api`);
-    
-    // Initialize database tables
-    await initializeDatabase();
-    
-    console.log('Available routes:');
-    console.log('- POST /api/auth/register');
-    console.log('- POST /api/auth/login');
-    console.log('- GET /api/auth/current-user');
-    console.log('- POST /api/auth/logout');
-    console.log('- GET /api/auth/test-db');
-    console.log('- GET /api/projects');
-    console.log('- GET /api/projects/:id');
-    console.log('- GET /api/payment-requests');
-    console.log('- GET /api/payment-requests/project/:projectId');
-    console.log('- POST /api/payment-requests');
-    console.log('- PUT /api/payment-requests/:id/status');
-    console.log('- GET /api/payment-requests/:id/history');
-    console.log('- GET /api/progress/project/:projectId');
-    console.log('- POST /api/progress');
-    console.log('- GET /api/drivers');
-    console.log('- POST /api/drivers');
-    console.log('- PUT /api/drivers/:id');
-    console.log('- DELETE /api/drivers/:id');
-    console.log('- GET /api/backup-links');
-    console.log('- POST /api/backup-links');
-    console.log('- PUT /api/backup-links/:id');
-    console.log('- GET /api/backup-links/:id');
-  });
-} else {
-  // Initialize database for Vercel
-  initializeDatabase().then(() => {
-    console.log('Database initialized for Vercel deployment');
-  }).catch((error) => {
-    console.error('Failed to initialize database for Vercel:', error);
-  });
-}
-
-// Export for Vercel
-export default app; 
+// Start server
+app.listen(port, async () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`API available at http://localhost:${port}/api`);
+  
+  // Initialize database tables
+  await initializeDatabase();
+  
+  console.log('Available routes:');
+  console.log('- POST /api/auth/register');
+  console.log('- POST /api/auth/login');
+  console.log('- GET /api/auth/current-user');
+  console.log('- POST /api/auth/logout');
+  console.log('- GET /api/auth/test-db');
+  console.log('- GET /api/projects');
+  console.log('- GET /api/projects/:id');
+  console.log('- GET /api/payment-requests');
+  console.log('- GET /api/payment-requests/project/:projectId');
+  console.log('- POST /api/payment-requests');
+  console.log('- PUT /api/payment-requests/:id/status');
+  console.log('- GET /api/payment-requests/:id/history');
+  console.log('- GET /api/progress/project/:projectId');
+  console.log('- POST /api/progress');
+  console.log('- GET /api/drivers');
+  console.log('- POST /api/drivers');
+  console.log('- PUT /api/drivers/:id');
+  console.log('- DELETE /api/drivers/:id');
+  console.log('- GET /api/backup-links');
+  console.log('- POST /api/backup-links');
+  console.log('- PUT /api/backup-links/:id');
+  console.log('- GET /api/backup-links/:id');
+  console.log('- GET /api/tender');
+}); 

@@ -72,7 +72,7 @@ export function Sidebar({ isOpen, toggleSidebar, className }: SidebarProps) {
           },
           {
             title: "Tenders",
-            url: "/admin/tenders",
+            url: "/admin/create-tender",
             icon: FileText,
           },
           {

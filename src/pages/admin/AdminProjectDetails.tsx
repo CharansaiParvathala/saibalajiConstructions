@@ -75,7 +75,7 @@ export default function AdminProjectDetails() {
             </div>
             <div>
               <h3 className="font-semibold">Total Work</h3>
-              <p>{project.totalWork} units</p>
+              <p>{project.totalWork} meters</p>
             </div>
             <div>
               <h3 className="font-semibold">Workers</h3>

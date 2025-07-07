@@ -76,26 +76,6 @@ export default function Signup() {
     }
   }
 
-  const handleGoogleSignup = async () => {
-    setLoading(true);
-    try {
-      const response = await register(
-        "admin@saibalaji.com",
-        "password123",
-        "Admin User",
-        "admin",
-        "1234567890"
-      );
-      toast.success(t('app.auth.signupSuccess'));
-      navigate('/admin');
-    } catch (error) {
-      console.error('Google signup error:', error);
-      toast.error(t('app.auth.signupError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cdefs%3E%3Cpattern id=\'grid\' width=\'20\' height=\'20\' patternUnits=\'userSpaceOnUse\'%3E%3Cpath d=\'M 20 0 L 0 0 0 20\' fill=\'none\' stroke=\'%23374151\' stroke-width=\'0.5\'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23grid)\'/%3E%3C/svg%3E')] opacity-20"></div>
@@ -106,21 +86,21 @@ export default function Signup() {
             <AuthLogo className="scale-110" />
           </div>
           <CardTitle className="text-2xl text-center font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            {t('app.auth.createAccount')}
+            Sign Up
           </CardTitle>
           <CardDescription className="text-center text-muted-foreground">
-            {t('app.auth.fillDetails')}
+            Fill in your details to create an account.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">{t('app.auth.name')}</Label>
+              <Label htmlFor="name" className="text-sm font-medium">Name</Label>
               <Input 
                 id="name" 
                 name="name"
                 type="text" 
-                placeholder={t('app.auth.namePlaceholder')} 
+                placeholder="Enter your name" 
                 value={formData.name}
                 onChange={handleChange}
                 required
@@ -128,12 +108,12 @@ export default function Signup() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">{t('app.auth.email')}</Label>
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <Input 
                 id="email" 
                 name="email"
                 type="email" 
-                placeholder={t('app.auth.emailPlaceholder')} 
+                placeholder="Enter your email" 
                 value={formData.email}
                 onChange={handleChange}
                 required
@@ -141,12 +121,12 @@ export default function Signup() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone" className="text-sm font-medium">{t('app.auth.phone')}</Label>
+              <Label htmlFor="phone" className="text-sm font-medium">Phone</Label>
               <Input 
                 id="phone" 
                 name="phone"
                 type="tel" 
-                placeholder={t('app.auth.phonePlaceholder')} 
+                placeholder="Enter your phone number" 
                 value={formData.phone}
                 onChange={handleChange}
                 required
@@ -154,26 +134,26 @@ export default function Signup() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-medium">{t('app.auth.role')}</Label>
+              <Label htmlFor="role" className="text-sm font-medium">Role</Label>
               <Select value={formData.role} onValueChange={handleRoleChange} required>
                 <SelectTrigger className="h-11 border-2 border-border/50 focus:border-primary transition-all duration-200">
-                  <SelectValue placeholder={t('app.auth.selectRole')} />
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">{t('app.auth.roles.admin')}</SelectItem>
-                  <SelectItem value="leader">{t('app.auth.roles.leader')}</SelectItem>
-                  <SelectItem value="member">{t('app.auth.roles.member')}</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="leader">Leader</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">{t('app.auth.password')}</Label>
+              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
               <div className="relative">
                 <Input 
                   id="password" 
                   name="password"
                   type={showPassword ? "text" : "password"} 
-                  placeholder={t('app.auth.passwordPlaceholder')} 
+                  placeholder="Enter your password" 
                   value={formData.password}
                   onChange={handleChange}
                   required
@@ -189,13 +169,13 @@ export default function Signup() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium">{t('app.auth.confirmPassword')}</Label>
+              <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
               <div className="relative">
                 <Input 
                   id="confirmPassword" 
                   name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"} 
-                  placeholder={t('app.auth.confirmPasswordPlaceholder')} 
+                  placeholder="Confirm your password" 
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
@@ -215,61 +195,20 @@ export default function Signup() {
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {t('app.auth.creatingAccount')}
+                  Signing up...
                 </div>
               ) : (
                 <span className="flex items-center gap-2">
                   <UserPlus size={18} />
-                  {t('app.auth.signup')}
+                  Sign up
                 </span>
               )}
-            </Button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/50"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  {t('app.auth.orContinueWith')}
-                </span>
-              </div>
-            </div>
-
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="w-full h-11 border-2 border-border/50 hover:border-primary/50 hover:bg-accent transition-all duration-200"
-              onClick={handleGoogleSignup}
-              disabled={loading}
-            >
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                <path
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  fill="#EA4335"
-                />
-              </svg>
-              {t('app.auth.googleSignUp')}
             </Button>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <div className="text-sm text-center text-muted-foreground">
-              {t('app.auth.alreadyHaveAccount')}{' '}
-              <Link to="/login" className="text-primary hover:text-primary/80 font-medium transition-colors">
-                {t('app.auth.login')}
-              </Link>
+              Already have an account?{' '}
+              <Link to="/login" className="text-primary hover:text-primary/80 font-medium transition-colors">Sign in</Link>
             </div>
           </CardFooter>
         </form>

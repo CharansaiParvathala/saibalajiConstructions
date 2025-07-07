@@ -1089,5 +1089,8 @@
           "owner": "ಮಾಲೀಕ"
         },
         "selectProjectToDelete": "ಅಳಿಸಲು ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
-        "chooseProjectToDelete": "ಅಳಿಸಲು ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ"
+        "chooseProjectToDelete": "ಅಳಿಸಲು ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+        "export": {
+          "title": "ಡೇಟಾ ರಫ್ತು"
+        }
       }

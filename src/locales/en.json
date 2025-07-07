@@ -543,13 +543,7 @@
         "deleteConfirm": "Are you sure you want to delete this vehicle?",
         "deleteSuccess": "Vehicle deleted successfully",
         "deleteError": "Failed to delete vehicle",
-        "fetchError": "Failed to fetch vehicles",
-        "type": {
-          "truck": "Truck",
-          "tractor": "Tractor",
-          "jcb": "JCB",
-          "other": "Other"
-        }
+        "fetchError": "Failed to fetch vehicles"
       },
       "drivers": {
         "manageDrivers": "Manage Drivers",
@@ -739,6 +733,9 @@
         "addError": "Failed to add backup link",
         "linkDeleted": "Backup link deleted successfully",
         "deleteError": "Failed to delete backup link"
+      },
+      "export": {
+        "title": "Export Data"
       },
       "tender": {
         "title": "Export Data",

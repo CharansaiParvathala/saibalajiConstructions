@@ -25,6 +25,7 @@ import { PaymentRequest, Project } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { displayImage, revokeBlobUrl } from '@/lib/utils/image-utils';
 import { useLanguage } from '@/context/language-context';
+import { useNavigate } from 'react-router-dom';
 
 const CheckerReviewSubmissions = () => {
   const { user } = useAuth();
@@ -44,6 +45,7 @@ const CheckerReviewSubmissions = () => {
   const reviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   // Load pending requests on mount
   useEffect(() => {
@@ -280,12 +282,12 @@ const CheckerReviewSubmissions = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.checker.reviewSubmissions.title')}</h1>
       <p className="text-muted-foreground mb-8">
         {t('app.checker.reviewSubmissions.description')}
       </p>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="w-full max-w-6xl mx-auto">
         {pendingRequests.length === 0 ? (
           <div className="text-center py-12">
             <h2 className="text-lg font-semibold mb-2">{t('app.checker.reviewSubmissions.noPendingTitle')}</h2>
@@ -295,7 +297,6 @@ const CheckerReviewSubmissions = () => {
           pendingRequests.map((request) => {
             const projectId = request.projectId || request.project_id;
             const project = projects.find(p => p.id === Number(projectId));
-            const isExpanded = expandedRequestId === String(request.id);
             return (
               <Card key={request.id}>
                 <CardHeader>
@@ -323,127 +324,14 @@ const CheckerReviewSubmissions = () => {
                       </div>
                     </div>
                   </div>
-                  {/* Inline expanded details */}
-                  {isExpanded && (
-                    <div className="mt-6 border-t pt-6 pb-4 px-4 max-h-80 overflow-y-auto rounded-lg shadow-inner bg-gray-50 dark:bg-[#23272f] dark:text-white">
-                      <div className="mb-6">
-                        <h2 className="text-2xl font-bold">
-                          {project?.title || `Project (${projectId})`}
-                        </h2>
-                      </div>
-                      <Card>
-                        <CardHeader>
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <CardTitle>{project?.title || `Project (${projectId})`}</CardTitle>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-bold">₹ {Number(request.totalAmount).toFixed(2)}</div>
-                              <div className="text-sm text-muted-foreground">Total Amount</div>
-                              <div className="mt-2">
-                                <Badge>{request.status}</Badge>
-                                {request.checkerNotes && (
-                                  <div className="text-sm text-muted-foreground mt-2">Checker Notes: {request.checkerNotes}</div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </Card>
-                      {request.expenses && request.expenses.length > 0 ? (
-                        <div className="space-y-6">
-                          <h2 className="text-2xl font-semibold">Expense Details</h2>
-                          {request.expenses.map((expense, index) => (
-                            <Card key={index}>
-                              <CardHeader>
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <CardTitle className="text-lg">{expense.type}</CardTitle>
-                                    <CardDescription>Expense #{index + 1}</CardDescription>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-xl font-bold">₹ {Number(expense.amount).toFixed(2)}</div>
-                                    <div className="text-sm text-muted-foreground">Amount</div>
-                                  </div>
-                                </div>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="space-y-4">
-                                  {expense.remarks && (
-                                    <div>
-                                      <h4 className="text-sm font-medium text-gray-700 mb-2">Remarks</h4>
-                                      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">{expense.remarks}</p>
-                                    </div>
-                                  )}
-                                  {expense.image_ids && expense.image_ids.length > 0 && (
-                                    <div>
-                                      <h4 className="text-sm font-medium text-gray-700 mb-2">Proof Images</h4>
-                                      <div className="flex flex-wrap gap-4">
-                                        {expense.image_ids.map((imageId, imgIndex) => {
-                                          const imageKey = `expense-${expense.id}-${imageId}`;
-                                          const imageUrl = expenseImageUrls[imageKey];
-                                          return (
-                                            <div key={imgIndex} className="bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center text-gray-400 p-2">
-                                              {imageUrl ? (
-                                                <a href={imageUrl} target="_blank" rel="noopener noreferrer">
-                                                  <img
-                                                    src={imageUrl}
-                                                    alt={`Expense proof ${imgIndex + 1}`}
-                                                    style={{ maxWidth: '100%', maxHeight: 400, display: 'block' }}
-                                                  />
-                                                </a>
-                                              ) : (
-                                                <span>Loading...</span>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      ) : (
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Payment Details</CardTitle>
-                            <CardDescription>General payment information</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-4">
-                              <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Amount</h4>
-                                <p className="text-lg font-semibold text-gray-900">₹ {Number(request.totalAmount).toFixed(2)}</p>
-                              </div>
-                              {request.description && (
-                                <div>
-                                  <h4 className="text-sm font-medium text-gray-700 mb-2">Description</h4>
-                                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">{request.description}</p>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="flex justify-between gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => setExpandedRequestId(isExpanded ? null : String(request.id))}
+                    onClick={() => navigate(`/checker/review-submissions/${request.id}`)}
                     className="flex-1"
                   >
-                    {isExpanded ? 'Hide Details' : 'View Details'}
-                  </Button>
-                  <Button
-                    onClick={e => handleReview(request, e)}
-                    className="flex-1"
-                  >
-                    Review
+                    View Details
                   </Button>
                 </CardFooter>
               </Card>

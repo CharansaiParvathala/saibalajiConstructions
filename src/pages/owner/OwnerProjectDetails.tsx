@@ -113,7 +113,7 @@ export default function OwnerProjectDetails() {
             </div>
             <div>
               <h3 className="font-semibold">Total Work</h3>
-              <p>{project.total_work ?? 0} units</p>
+              <p>{project.total_work ?? 0} meters</p>
             </div>
             <div className="flex space-x-4">
               <Button

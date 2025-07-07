@@ -43,7 +43,7 @@ export default function ForgotPassword() {
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1">
             <AuthLogo />
-            <CardTitle className="text-2xl">{t("app.auth.checkYourEmail")}</CardTitle>
+            <CardTitle className="text-2xl">Check Your Email</CardTitle>
             <CardDescription>
               {t("app.auth.resetLinkSentDescription")}
             </CardDescription>
@@ -77,19 +77,17 @@ export default function ForgotPassword() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <AuthLogo />
-          <CardTitle className="text-2xl">{t("app.auth.forgotPassword")}</CardTitle>
-          <CardDescription>
-            {t("app.auth.enterEmailForReset")}
-          </CardDescription>
+          <CardTitle className="text-2xl">Forgot Password</CardTitle>
+          <CardDescription>Enter your email address to receive a password reset link.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">{t("app.auth.email")}</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder={t("app.auth.emailPlaceholder")}
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -98,7 +96,7 @@ export default function ForgotPassword() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? t("common.loading") : t("app.auth.sendResetLink")}
+              {loading ? 'Sending...' : 'Send Reset Link'}
             </Button>
             <div className="text-sm text-center text-muted-foreground">
               <Link to="/login" className="text-primary hover:underline">

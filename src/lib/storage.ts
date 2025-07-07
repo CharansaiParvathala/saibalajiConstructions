@@ -319,7 +319,7 @@ export const getPaymentRequestsForDashboard = (userRole: string): PaymentRequest
   return getAllPaymentRequests();
 };
 
-export const getProgressUpdatesForDashboard = (): ProgressUpdate[] => {
+export const getProgressUpdatesForDashboard = (userRole: string): ProgressUpdate[] => {
   // All roles can see all progress updates
   return getAllProgressUpdates();
 };
@@ -334,9 +334,9 @@ export const getAllUsers = (): User[] => {
   return getUsers();
 };
 
-export const getUserById = (id: number): User | undefined => {
+export const getUserById = (id: string): User | undefined => {
   const users = getUsers();
-  return users.find(user => user.id === id.toString());
+  return users.find(user => user.id === id);
 };
 
 export const createUser = (user: Omit<User, 'id'>): User => {
@@ -401,7 +401,7 @@ export const createBackupLink = (link: Omit<BackupLink, 'id' | 'createdAt'>): Ba
   const links = getAllBackupLinks();
   const newLink: BackupLink = {
     ...link,
-    id: Date.now(), // Use timestamp as ID
+    id: uuidv4(),
     createdAt: new Date().toISOString(),
   };
   links.push(newLink);
@@ -409,7 +409,7 @@ export const createBackupLink = (link: Omit<BackupLink, 'id' | 'createdAt'>): Ba
   return newLink;
 };
 
-export const deleteBackupLink = (id: number): void => {
+export const deleteBackupLink = (id: string): void => {
   const links = getAllBackupLinks();
   const updatedLinks = links.filter(link => link.id !== id);
   localStorage.setItem('backupLinks', JSON.stringify(updatedLinks));
@@ -473,14 +473,14 @@ export const getVehicleById = (id: string): Vehicle | undefined => {
 };
 
 // Project Storage
-export const createProject = (project: Omit<Project, 'id' | 'created_at'>): Project => {
+export const createProject = (project: Omit<Project, 'id' | 'createdAt'>): Project => {
   return saveProject(project);
 };
 
 // Progress Update Storage
-export const getProgressUpdateById = async (id: string): Promise<ProgressUpdate | undefined> => {
-  const updates = await getProgressUpdates();
-  return updates.find((update: ProgressUpdate) => update.id === id);
+export const getProgressUpdateById = (id: string): ProgressUpdate | undefined => {
+  const updates = getProgressUpdates();
+  return updates.find(update => update.id === id);
 };
 
 // Payment Request Storage
@@ -493,18 +493,18 @@ export const updatePaymentRequest = (updatedRequest: PaymentRequest): void => {
 };
 
 // Leader Progress Stats
-export const getLeaderProgressStats = async (leaderId: string) => {
+export const getLeaderProgressStats = (leaderId: string) => {
   const projects = getProjectsByLeaderId(leaderId);
-  const updates = await getProgressUpdates();
+  const updates = getProgressUpdates();
   
   return projects.map(project => {
-    const projectUpdates = updates.filter((update: ProgressUpdate) => update.project_id === project.id);
+    const projectUpdates = updates.filter(update => update.projectId === project.id);
     const totalUpdates = projectUpdates.length;
-    const lastUpdate = projectUpdates[0]?.created_at || project.created_at;
+    const lastUpdate = projectUpdates[0]?.date || project.createdAt;
     
     return {
       projectId: project.id,
-      projectName: project.title,
+      projectName: project.name,
       totalUpdates,
       lastUpdate,
       completionPercentage: calculateCompletionPercentage(project)
@@ -514,8 +514,8 @@ export const getLeaderProgressStats = async (leaderId: string) => {
 
 // Helper function for completion percentage
 const calculateCompletionPercentage = (project: Project): number => {
-  if (project.total_work === 0) return 0;
-  return Math.min(100, Math.round((project.completed_work / project.total_work) * 100));
+  if (project.totalWork === 0) return 0;
+  return Math.min(100, Math.round((project.completedWork / project.totalWork) * 100));
 };
 
 // Final Submissions Storage

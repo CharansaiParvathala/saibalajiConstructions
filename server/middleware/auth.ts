@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db/config';
-import { RowDataPacket } from 'mysql2';
 
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -18,9 +17,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     const [users] = await pool.query(
       'SELECT id, email, name, role FROM users WHERE id = ?',
       [decoded.id]
-    ) as [RowDataPacket[], any];
+    );
 
-    if (!Array.isArray(users) || users.length === 0) {
+    if (!users || users.length === 0) {
       return res.status(401).json({ error: 'User not found' });
     }
 
@@ -31,7 +30,4 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     console.error('Auth error:', error);
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
-};
-
-// Alias for authenticateToken
-export const authenticate = authenticateToken; 
+}; 

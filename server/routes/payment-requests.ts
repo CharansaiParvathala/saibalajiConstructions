@@ -409,4 +409,62 @@ router.get('/image/:imageId', authenticateToken, async (req: Request, res: Respo
   }
 });
 
+// Get payment request by ID
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.query(`
+      SELECT 
+        pr.*,
+        p.title as project_title,
+        u.name as requester_name,
+        GROUP_CONCAT(pri.id) as image_ids
+      FROM payment_requests pr
+      JOIN projects p ON pr.project_id = p.id
+      JOIN users u ON p.leader_id = u.id
+      LEFT JOIN payment_request_images pri ON pr.id = pri.payment_request_id
+      WHERE pr.id = ?
+      GROUP BY pr.id
+    `, [id]) as [any[], any];
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Payment request not found' });
+    }
+
+    // Get expenses for this payment request
+    const [expensesData] = await pool.query(`
+      SELECT 
+        pre.id,
+        pre.expense_type,
+        pre.amount,
+        pre.remarks,
+        GROUP_CONCAT(pri.id) as image_ids
+      FROM payment_request_expenses pre
+      LEFT JOIN payment_request_images pri ON pre.id = pri.expense_id
+      WHERE pre.payment_request_id = ?
+      GROUP BY pre.id
+      ORDER BY pre.id
+    `, [id]) as [any[], any];
+
+    // Format expenses with their image IDs
+    const formattedExpenses = expensesData.map((expense: any) => ({
+      ...expense,
+      image_ids: expense.image_ids ? expense.image_ids.split(',').map((imgId: string) => parseInt(imgId.trim())) : []
+    }));
+
+    const row = rows[0];
+    const formattedRequest = {
+      ...row,
+      proof_of_payment: row.proof_of_payment ? row.proof_of_payment.toString('base64') : null,
+      image_ids: row.image_ids ? row.image_ids.split(',').map((imgId: string) => parseInt(imgId.trim())) : [],
+      expenses: formattedExpenses
+    };
+
+    res.json(formattedRequest);
+  } catch (error) {
+    console.error('Error fetching payment request by ID:', error);
+    res.status(500).json({ error: 'Failed to fetch payment request' });
+  }
+});
+
 export default router; 

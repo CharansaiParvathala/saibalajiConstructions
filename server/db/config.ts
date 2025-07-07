@@ -5,7 +5,7 @@ const path = require('path');
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-// Database configuration
+// Database configuration for CodeSandbox
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
@@ -14,20 +14,14 @@ const dbConfig = {
   database: process.env.DB_NAME || 'progress_tracker',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0,
-  // Add SSL configuration for cloud databases
-  ssl: process.env.DB_SSL === 'true' ? {
-    rejectUnauthorized: false
-  } : undefined
+  queueLimit: 0
 };
 
-// Log connection details (without sensitive info)
 console.log('Attempting to connect to database with config:', {
   host: dbConfig.host,
   port: dbConfig.port,
   user: dbConfig.user,
-  database: dbConfig.database,
-  ssl: dbConfig.ssl ? 'enabled' : 'disabled'
+  database: dbConfig.database
 });
 
 // Create connection pool
@@ -46,6 +40,5 @@ pool.getConnection()
     console.error('2. The database credentials are correct');
     console.error('3. The database exists');
     console.error('4. The port is accessible');
-    console.error('5. For cloud databases: SSL is properly configured');
     process.exit(1);
   });

@@ -267,17 +267,11 @@ const LeaderAddProgress = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6">{t('app.addProgress.title')}</h1>
-      <p className="text-muted-foreground mb-8">
-        {t('app.addProgress.description')}
-      </p>
       
       <div className="w-full max-w-6xl mx-auto">
         <Card className="w-full">
           <CardHeader>
             <CardTitle>{t('app.addProgress.title')}</CardTitle>
-            <CardDescription>
-              {t('app.addProgress.description')}
-            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6 w-full">
@@ -313,13 +307,12 @@ const LeaderAddProgress = () => {
                 </div>
             
                 <div className="w-full">
-                  <Label htmlFor="completedWork">{t('app.addProgress.completedWork.label')}</Label>
+                  <Label htmlFor="completedWork">Work (meters)</Label>
               <Input
                 id="completedWork"
-                type="number"
+                placeholder="Enter completed work in meters"
                 value={completedWork}
                 onChange={(e) => setCompletedWork(e.target.value)}
-                    placeholder={t('app.addProgress.completedWork.placeholder')}
                     required
                     className="w-full"
                   />

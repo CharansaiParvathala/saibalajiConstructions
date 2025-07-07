@@ -1,8 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/config');
-const dotenv = require('dotenv');
-const path = require('path');
+import dotenv from 'dotenv';
+import path from 'path';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -27,25 +27,30 @@ export interface AuthResponse {
   token: string;
 }
 
-// Register a new user
-async function registerUser(email: string, password: string, name: string, role: string, mobile_number?: string) {
+async function registerUser(email, password, name, role, mobile_number) {
   try {
-    console.log('Registering user:', { email, name, role, mobile_number });
-
+    console.log('Starting user registration:', { email, name, role, mobile_number });
+    
     // Check if user already exists
-    const [existingUsers] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (Array.isArray(existingUsers) && existingUsers.length > 0) {
+    const [existingUsers] = await pool.execute(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (existingUsers.length > 0) {
+      console.log('User already exists:', { email });
       throw new Error('User already exists');
     }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    console.log('Password hashed successfully');
 
     // Insert new user
-    const [result] = await pool.query(
+    const [result] = await pool.execute(
       'INSERT INTO users (email, password, name, role, mobile_number) VALUES (?, ?, ?, ?, ?)',
-      [email, hashedPassword, name, role, mobile_number || null]
+      [email, hashedPassword, name, role, mobile_number]
     );
 
     const userId = result.insertId;
@@ -57,47 +62,56 @@ async function registerUser(email: string, password: string, name: string, role:
       JWT_SECRET,
       { expiresIn: '24h' }
     );
+    console.log('JWT token generated');
+
+    // Get the created user
+    const [users] = await pool.execute(
+      'SELECT id, email, name, role, mobile_number FROM users WHERE id = ?',
+      [userId]
+    );
+
+    const user = users[0];
+    console.log('User fetched after creation:', { userId: user.id });
 
     return {
-      success: true,
-      user: {
-        id: userId,
-        email,
-        name,
-        role,
-        mobile_number
-      },
+      user,
       token
     };
   } catch (error) {
     console.error('Registration error:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      stack: error instanceof Error ? error.stack : undefined
+      message: error.message,
+      code: error.code,
+      stack: error.stack
     });
     throw error;
   }
 }
 
-// Login user
-async function loginUser(email: string, password: string) {
+async function loginUser(email, password) {
   try {
-    console.log('Login attempt for:', email);
+    console.log('Starting user login:', { email });
+    
+    // Get user
+    const [users] = await pool.execute(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
 
-    // Find user
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (!Array.isArray(users) || users.length === 0) {
-      throw new Error('Invalid credentials');
+    if (users.length === 0) {
+      console.log('User not found:', { email });
+      return null;
     }
 
     const user = users[0];
     console.log('User found:', { userId: user.id });
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      throw new Error('Invalid credentials');
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.log('Invalid password for user:', { email });
+      return null;
     }
+    console.log('Password verified successfully');
 
     // Generate JWT token
     const token = jwt.sign(
@@ -105,67 +119,63 @@ async function loginUser(email: string, password: string) {
       JWT_SECRET,
       { expiresIn: '24h' }
     );
+    console.log('JWT token generated');
+
+    // Remove password from user object
+    const { password: _, ...userWithoutPassword } = user;
 
     return {
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      },
+      user: userWithoutPassword,
       token
     };
   } catch (error) {
     console.error('Login error:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      stack: error instanceof Error ? error.stack : undefined
+      message: error.message,
+      code: error.code,
+      stack: error.stack
     });
     throw error;
   }
 }
 
-// Get user by ID
-async function getUserById(id: string) {
+async function getUserById(id) {
   try {
     console.log('Fetching user by ID:', { id });
-
-    const [users] = await pool.query(
+    const [users] = await pool.execute(
       'SELECT id, email, name, role FROM users WHERE id = ?',
       [id]
     );
 
-    if (!Array.isArray(users) || users.length === 0) {
+    if (users.length === 0) {
       console.log('User not found:', { id });
       return null;
     }
 
-    const user = users[0];
-    console.log('User found:', { userId: user.id });
-    return user;
+    console.log('User found:', { userId: users[0].id });
+    return users[0];
   } catch (error) {
     console.error('Get user error:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      stack: error instanceof Error ? error.stack : undefined
+      message: error.message,
+      code: error.code,
+      stack: error.stack
     });
     throw error;
   }
 }
 
-// Verify JWT token
-function verifyToken(token: string) {
+function verifyToken(token) {
   try {
+    console.log('Verifying token');
     const decoded = jwt.verify(token, JWT_SECRET);
-    return { valid: true, decoded };
+    console.log('Token verified successfully:', { userId: decoded.id });
+    return decoded;
   } catch (error) {
     console.error('Token verification error:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any).code,
-      stack: error instanceof Error ? error.stack : undefined
+      message: error.message,
+      code: error.code,
+      stack: error.stack
     });
-    return { valid: false, error };
+    return null;
   }
 }
 

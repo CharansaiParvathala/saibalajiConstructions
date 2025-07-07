@@ -190,3 +190,15 @@ CREATE TABLE IF NOT EXISTS backup_links (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );                                                                                                                                                                                 
+
+-- Create tender_images table
+CREATE TABLE IF NOT EXISTS tender_images (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    section VARCHAR(50) NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    image LONGBLOB NOT NULL,
+    serial_number INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_section_serial (section, serial_number)
+);                                                                                                                                                                                 

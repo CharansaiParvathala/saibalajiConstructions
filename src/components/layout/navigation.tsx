@@ -57,7 +57,7 @@ const navigationItems: NavItem[] = [
   },
   {
     title: 'Tenders',
-    href: '/admin/tenders',
+    href: '/admin/create-tender',
     icon: <Gavel className="h-5 w-5" />,
     roles: ['admin'],
   },

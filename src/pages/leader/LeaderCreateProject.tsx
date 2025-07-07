@@ -93,7 +93,7 @@ const LeaderCreateProject = () => {
   
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-6">{t('app.createProject.title')}</h1>
+      <h1 className="text-4xl font-bold mb-6">Create Project</h1>
       <p className="text-muted-foreground mb-8">
         {t('app.createProject.description')}
       </p>
@@ -101,7 +101,7 @@ const LeaderCreateProject = () => {
       <div className="w-full max-w-6xl mx-auto">
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>{t('app.createProject.details.title')}</CardTitle>
+            <CardTitle>Create Project</CardTitle>
             <CardDescription>
               {t('app.createProject.details.subtitle')}
             </CardDescription>
@@ -135,11 +135,11 @@ const LeaderCreateProject = () => {
               </div>
               
               <div className="space-y-2 w-full">
-                <Label htmlFor="totalWork">{t('app.createProject.details.totalWork.label')}</Label>
+                <Label htmlFor="totalWork">Total Work (meters)</Label>
                 <Input
                   id="totalWork"
                   type="number"
-                  placeholder={t('app.createProject.details.totalWork.placeholder')}
+                  placeholder="Enter total work in meters"
                   {...register("totalWork")}
                   className="w-full"
                 />
