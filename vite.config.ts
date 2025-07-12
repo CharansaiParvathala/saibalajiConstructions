@@ -5,9 +5,19 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'saibalajiconstructions.onrender.com',
+      '.onrender.com'
+    ],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

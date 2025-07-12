@@ -94,6 +94,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve static files from the React app build
+app.use(express.static(path.join(__dirname, '../dist')));
+
 // Auth middleware
 const authenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
@@ -146,6 +149,11 @@ app.use('/api/tender', tenderRoutes);
 // Test route
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API is working' });
+});
+
+// Catch all handler: send back React's index.html file for any non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 // Error handling middleware
