@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { exportFinalSubmissionImages } from '../../utils/final-submission-image-export';
+import { Dialog as ProgressDialog } from '@/components/ui/dialog';
 
 const AdminExportData = () => {
   const { user } = useAuth();
@@ -39,6 +40,7 @@ const AdminExportData = () => {
   const [selectedDeletableProject, setSelectedDeletableProject] = useState<Project | null>(null);
   const [loadingDeletable, setLoadingDeletable] = useState(false);
   const [downloadingMergedTender, setDownloadingMergedTender] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState(0);
 
   // Redirect if not admin
   useEffect(() => {
@@ -121,13 +123,14 @@ const AdminExportData = () => {
 
     try {
       setLoading(prev => ({ ...prev, projectPdf: true }));
+      setPdfProgress(0);
       toast.info(t("common.generating"));
       
       // Fetch project-specific data
       const projectData = await getProjectExportData(selectedProjectForExport.id);
       
       // Export to PDF
-      await exportProjectDataToPDF(projectData.data);
+      await exportProjectDataToPDF(projectData.data, (percent) => setPdfProgress(percent));
       
       toast.success(t("common.exportSuccess"));
     } catch (error) {
@@ -135,6 +138,7 @@ const AdminExportData = () => {
       toast.error(t("common.exportError"));
     } finally {
       setLoading(prev => ({ ...prev, projectPdf: false }));
+      setTimeout(() => setPdfProgress(0), 1000);
     }
   };
 
@@ -442,6 +446,21 @@ const AdminExportData = () => {
           </CardContent>
         </Card>
       </div>
+      {/* PDF Download Progress Modal */}
+      <ProgressDialog open={loading.projectPdf}>
+        <DialogContent className="flex flex-col items-center justify-center">
+          <DialogHeader>
+            <DialogTitle>Generating PDF...</DialogTitle>
+          </DialogHeader>
+          <div className="w-full flex flex-col items-center gap-4 py-4">
+            <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
+              <div className="bg-blue-600 h-4 rounded-full transition-all duration-300" style={{ width: `${pdfProgress}%` }}></div>
+            </div>
+            <div className="text-center text-lg font-semibold">{pdfProgress}%</div>
+            <div className="text-sm text-gray-500">Please wait while your PDF is being generated and downloaded.</div>
+          </div>
+        </DialogContent>
+      </ProgressDialog>
     </div>
   );
 };

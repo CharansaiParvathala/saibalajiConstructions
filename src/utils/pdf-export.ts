@@ -64,10 +64,22 @@ const fetchImageForPdf = async (imageId: number, type: 'progress' | 'payment-req
 /**
  * Process project-specific images for export
  */
-const processProjectImagesForExport = async (projectData: any): Promise<any> => {
+const processProjectImagesForExport = async (projectData: any, onProgress?: (percent: number) => void): Promise<any> => {
   const processedData = { ...projectData };
   
   // Process progress images
+  let totalImages = 0;
+  let processedImagesCount = 0;
+  for (const progressItem of processedData.progress) {
+    if (progressItem.images && progressItem.images.length > 0) {
+      totalImages += progressItem.images.length;
+    }
+  }
+  for (const paymentItem of processedData.payments) {
+    if (paymentItem.images && paymentItem.images.length > 0) {
+      totalImages += paymentItem.images.length;
+    }
+  }
   for (const progressItem of processedData.progress) {
     if (progressItem.images && progressItem.images.length > 0) {
       const processedImages = [];
@@ -78,6 +90,8 @@ const processProjectImagesForExport = async (projectData: any): Promise<any> => 
             processedImages.push({ ...image, url: base64Url });
           }
         }
+        processedImagesCount++;
+        if (onProgress && totalImages > 0) onProgress(Math.round((processedImagesCount / totalImages) * 60));
       }
       progressItem.images = processedImages;
     }
@@ -94,6 +108,8 @@ const processProjectImagesForExport = async (projectData: any): Promise<any> => 
             processedImages.push({ ...image, url: base64Url });
           }
         }
+        processedImagesCount++;
+        if (onProgress && totalImages > 0) onProgress(Math.round((processedImagesCount / totalImages) * 60));
       }
       paymentItem.images = processedImages;
     }
@@ -468,14 +484,14 @@ export const exportPaymentsToPDF = async (payments: PaymentRequest[]): Promise<v
 };
 
 // Export project-specific data to PDF
-export const exportProjectDataToPDF = async (projectData: any) => {
+export const exportProjectDataToPDF = async (projectData: any, onProgress?: (percent: number) => void) => {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   
   // Process images first - fetch and convert to base64
-  console.log('Processing images for project export...');
-  const processedData = await processProjectImagesForExport(projectData);
-  console.log('Project images processed successfully');
+  if (onProgress) onProgress(0);
+  const processedData = await processProjectImagesForExport(projectData, onProgress);
+  if (onProgress) onProgress(30);
   
   let yPosition = 20;
   const pageHeight = doc.internal.pageSize.height;
@@ -585,29 +601,25 @@ export const exportProjectDataToPDF = async (projectData: any) => {
         const imageWidth = 80;
         const imageHeight = 60;
         const imageSpacing = 10;
+        const totalRows = Math.ceil(progressItem.images.length / imagesPerRow);
         
-        for (let i = 0; i < progressItem.images.length; i++) {
-          const row = Math.floor(i / imagesPerRow);
-          const col = i % imagesPerRow;
-          const imageX = margin + 5 + (col * (imageWidth + imageSpacing));
-          const imageY = yPosition + (row * (imageHeight + 5));
-          
-          // Check if we need a new page for images
-          if (imageY + imageHeight > pageHeight - 20) {
+        for (let row = 0; row < totalRows; row++) {
+          // Before starting a new row, check if there's enough space for the row
+          if (yPosition + imageHeight > pageHeight - 20) {
             doc.addPage();
             yPosition = 20;
-            // Recalculate position for new page
-            const newRow = Math.floor(i / imagesPerRow);
-            const newImageY = yPosition + (newRow * (imageHeight + 5));
-            doc.addImage(progressItem.images[i].url, 'JPEG', imageX, newImageY, imageWidth, imageHeight);
-          } else {
-            doc.addImage(progressItem.images[i].url, 'JPEG', imageX, imageY, imageWidth, imageHeight);
           }
+          for (let col = 0; col < imagesPerRow; col++) {
+            const imgIdx = row * imagesPerRow + col;
+            if (imgIdx >= progressItem.images.length) break;
+            const imageX = margin + 5 + (col * (imageWidth + imageSpacing));
+            if (progressItem.images[imgIdx].url) {
+              doc.addImage(progressItem.images[imgIdx].url, 'JPEG', imageX, yPosition, imageWidth, imageHeight);
+            }
+          }
+          yPosition += imageHeight + 5;
         }
-        
-        // Update yPosition after images
-        const totalRows = Math.ceil(progressItem.images.length / imagesPerRow);
-        yPosition += (totalRows * (imageHeight + 5)) + 10;
+        yPosition += 5;
       }
       
       // Find related payment data for this progress
@@ -675,22 +687,26 @@ export const exportProjectDataToPDF = async (projectData: any) => {
                 const expenseImageWidth = 60;
                 const expenseImageHeight = 45;
                 const expenseImageSpacing = 5;
+                const expenseImagesPerRow = 3;
+                const totalExpenseRows = Math.ceil(expenseImages.length / expenseImagesPerRow);
                 
-                for (let i = 0; i < expenseImages.length; i++) {
-                  const expenseImageX = margin + 25 + (i * (expenseImageWidth + expenseImageSpacing));
-                  
-                  // Check if we need a new page for expense images
+                for (let row = 0; row < totalExpenseRows; row++) {
+                  // Before starting a new row, check if there's enough space for the row
                   if (yPosition + expenseImageHeight > pageHeight - 20) {
                     doc.addPage();
                     yPosition = 20;
-          }
-          
-                  if (expenseImages[i].url) {
-                    doc.addImage(expenseImages[i].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
                   }
+                  for (let col = 0; col < expenseImagesPerRow; col++) {
+                    const imgIdx = row * expenseImagesPerRow + col;
+                    if (imgIdx >= expenseImages.length) break;
+                    const expenseImageX = margin + 25 + (col * (expenseImageWidth + expenseImageSpacing));
+                    if (expenseImages[imgIdx].url) {
+                      doc.addImage(expenseImages[imgIdx].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
+                    }
+                  }
+                  yPosition += expenseImageHeight + 5;
                 }
-                
-                yPosition += expenseImageHeight + 5;
+                yPosition += 5;
               }
             }
           }
@@ -774,22 +790,26 @@ export const exportProjectDataToPDF = async (projectData: any) => {
             const expenseImageWidth = 60;
             const expenseImageHeight = 45;
             const expenseImageSpacing = 5;
+            const expenseImagesPerRow = 3;
+            const totalExpenseRows = Math.ceil(expenseImages.length / expenseImagesPerRow);
             
-            for (let i = 0; i < expenseImages.length; i++) {
-              const expenseImageX = margin + 15 + (i * (expenseImageWidth + expenseImageSpacing));
-              
-              // Check if we need a new page for expense images
+            for (let row = 0; row < totalExpenseRows; row++) {
+              // Before starting a new row, check if there's enough space for the row
               if (yPosition + expenseImageHeight > pageHeight - 20) {
                 doc.addPage();
                 yPosition = 20;
               }
-              
-              if (expenseImages[i].url) {
-                doc.addImage(expenseImages[i].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
+              for (let col = 0; col < expenseImagesPerRow; col++) {
+                const imgIdx = row * expenseImagesPerRow + col;
+                if (imgIdx >= expenseImages.length) break;
+                const expenseImageX = margin + 15 + (col * (expenseImageWidth + expenseImageSpacing));
+                if (expenseImages[imgIdx].url) {
+                  doc.addImage(expenseImages[imgIdx].url, 'JPEG', expenseImageX, yPosition, expenseImageWidth, expenseImageHeight);
+                }
               }
+              yPosition += expenseImageHeight + 5;
             }
-            
-            yPosition += expenseImageHeight + 5;
+            yPosition += 5;
           }
         }
       }
@@ -815,4 +835,5 @@ export const exportProjectDataToPDF = async (projectData: any) => {
   // Save the PDF
   const fileName = `project_${processedData.project.title.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
+  if (onProgress) onProgress(100);
 };

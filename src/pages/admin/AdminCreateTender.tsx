@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
 import { Download, Image } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Dialog as ProgressDialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const API_BASE = '/api/tender';
 
@@ -19,6 +20,8 @@ const AdminCreateTender = () => {
   const [mergedPdfUrl, setMergedPdfUrl] = useState<string | null>(null);
   const [sectionPdfUrl, setSectionPdfUrl] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [tenderProgress, setTenderProgress] = useState(0);
+  const [tenderIndeterminate, setTenderIndeterminate] = useState(false);
 
   // Fetch section names on mount
   useEffect(() => {
@@ -39,6 +42,7 @@ const AdminCreateTender = () => {
   // Handle add image
   const handleAddImage = async () => {
     setAddingImage(true);
+    setTenderProgress(0);
     setMergedPdfUrl(null);
     try {
       if (!selectedSection || !imageFile) {
@@ -60,41 +64,78 @@ const AdminCreateTender = () => {
       } else {
         toast.error('Image added but no merged PDF returned');
       }
+      setTenderProgress(100);
     } catch (err) {
       toast.error('Failed to add image');
     } finally {
       setAddingImage(false);
+      setTimeout(() => setTenderProgress(0), 1000);
     }
   };
 
   // Handle download merged tender PDF
   const handleDownloadTender = async () => {
     setDownloading(true);
+    setTenderProgress(0);
+    setTenderIndeterminate(true); // Start as indeterminate
     try {
       const res = await fetch(`${API_BASE}/download`);
       if (!res.ok) throw new Error('Failed to download tender PDF');
-      
-      // Create blob from response
-      const blob = await res.blob();
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      let filename = window.prompt('Enter a name for the PDF file:', 'tender.pdf');
-      if (!filename || !filename.trim()) filename = 'tender.pdf';
-      if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast.success('Tender PDF downloaded successfully!');
+      const contentLength = res.headers.get('content-length');
+      if (res.body && contentLength) {
+        setTenderIndeterminate(false); // Switch to real progress bar
+        const total = parseInt(contentLength, 10);
+        let loaded = 0;
+        const reader = res.body.getReader();
+        const chunks = [];
+        setTenderProgress(0);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          loaded += value.length;
+          setTenderProgress(Math.round((loaded / total) * 100));
+        }
+        setTenderProgress(100);
+        const blob = new Blob(chunks, { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        let filename = window.prompt('Enter a name for the PDF file:', 'tender.pdf');
+        if (!filename || !filename.trim()) filename = 'tender.pdf';
+        if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Tender PDF downloaded successfully!');
+      } else {
+        setTenderIndeterminate(true); // Remain indeterminate
+        // fallback for browsers that don't support streaming or no content-length
+        const blob = await res.blob();
+        setTenderProgress(100);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        let filename = window.prompt('Enter a name for the PDF file:', 'tender.pdf');
+        if (!filename || !filename.trim()) filename = 'tender.pdf';
+        if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success('Tender PDF downloaded successfully!');
+      }
     } catch (err) {
       toast.error('Failed to download tender PDF');
     } finally {
-      setDownloading(false);
+      setTimeout(() => {
+        setDownloading(false);
+        setTenderProgress(0);
+        setTenderIndeterminate(false);
+      }, 700);
     }
   };
 
@@ -198,6 +239,41 @@ const AdminCreateTender = () => {
           )}
         </CardContent>
       </Card>
+      {/* Tender PDF Progress Modal */}
+      <ProgressDialog open={downloading || addingImage}>
+        <DialogContent className="flex flex-col items-center justify-center">
+          <DialogHeader>
+            <DialogTitle>{downloading ? 'Downloading Tender PDF...' : 'Processing Image & Merging PDF...'}</DialogTitle>
+          </DialogHeader>
+          <div className="w-full flex flex-col items-center gap-4 py-4">
+            {downloading ? (
+              tenderIndeterminate ? (
+                <>
+                  <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden">
+                    <div className="bg-blue-600 h-4 rounded-full animate-pulse w-1/2"></div>
+                  </div>
+                  <div className="text-center text-lg font-semibold">Processing...</div>
+                </>
+              ) : (
+                <>
+                  <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
+                    <div className="bg-blue-600 h-4 rounded-full transition-all duration-300" style={{ width: `${tenderProgress}%` }}></div>
+                  </div>
+                  <div className="text-center text-lg font-semibold">{tenderProgress}%</div>
+                </>
+              )
+            ) : (
+              <>
+                <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden">
+                  <div className="bg-blue-600 h-4 rounded-full animate-pulse w-1/2"></div>
+                </div>
+                <div className="text-center text-lg font-semibold">Processing...</div>
+              </>
+            )}
+            <div className="text-sm text-gray-500">Please wait while your tender PDF is being {downloading ? 'downloaded' : 'processed'}.</div>
+          </div>
+        </DialogContent>
+      </ProgressDialog>
     </div>
   );
 };

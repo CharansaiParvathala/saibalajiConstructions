@@ -7,10 +7,10 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 // Database configuration for CodeSandbox
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'root',
+  host: process.env.DB_HOST || '192.168.165.1',
+  port: parseInt(process.env.DB_PORT || '55000'),
+  user: process.env.DB_USER || 'remoteuser',
+  password: process.env.DB_PASSWORD || 'password@553034',
   database: process.env.DB_NAME || 'progress_tracker',
   waitForConnections: true,
   connectionLimit: 10,
